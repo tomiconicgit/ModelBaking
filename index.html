@@ -3,424 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>GLB Animation Baker</title>
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1a202c">
-    <meta name="description" content="A tool to load a base GLB model, attach multiple skinless animations, and export a single combined GLB file.">
-    
-    <link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"GLB Animation Baker","short_name":"GLB Baker","start_url":".","display":"standalone","background_color":"#1a202c","theme_color":"#1a202c","description":"Combine a GLB model with multiple animations.","icons":[{"src":"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ"gh0PSI1MTIiIHJ4PSI5NiIgZmlsbD0iIzI2MjYyNiIvPjxwYXRoIGQ9Ik0yNTYgMTI4QzE4MS43OSAxMjggMTIzLjU4IDE4Mi4yMSAxMjMuNTggMTgyLjIxVjMyOS43OUMxMjMuNTggMzI5Ljc5IDE4MS43OSAzODQgMjU2IDM4NEMzMzAuMjEgMzg0IDM4OC40MiAzMjkuNzkgMzg4LjQyIDMyOS43OVYxODIuMjFDMzg4LjQyIDE4Mi4yMSAzMzAuMjEgMTI4IDI1NiAxMjhaIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0yNTYgMTI4VjM4NCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMTYwIDIzMkgzNTIiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW59PSJyb3VuZCIvPjxwYXRoIGQ9Ik0xNjAgMjgINDgiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW59PSJyb3VuZCIvPjwvzdmc+","type":"image/svg+xml","sizes":"512x512"}]}' />
-
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Step-by-Step GLB Tool</title>
     
     <style>
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .btn { @apply w-full px-4 py-3 text-center font-semibold text-white transition-all duration-200 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800; }
-        .btn-primary { @apply bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700; }
-        .btn-secondary { @apply bg-gray-600 hover:bg-gray-500 active:bg-gray-700; }
-        .btn-disabled { @apply bg-gray-500 cursor-not-allowed opacity-50; }
-        
-        .anim-item { @apply bg-gray-700 rounded-lg flex items-center px-4 py-3; }
-        .anim-item-name { @apply flex-1 min-w-0 cursor-pointer truncate; }
-        .anim-item.active .anim-item-name { @apply text-indigo-300 font-semibold; }
-        
-        /* Changed background to bg-gray-900 for better contrast */
-        .anim-input { @apply bg-gray-900 text-white w-full rounded-md px-2 py-1 border border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400; }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #2d3748; }
-        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #718096; }
-        #loader { transform: translate(-50%, -50%); }
+        :root {
+            --viewer-bg: #f0f0f0; --ui-bg: rgba(255, 255, 255, 0.9); --panel-bg: #ffffff;
+            --primary-color: #007aff; --text-color: #1d1d1f; --border-color: #d2d2d7;
+            --shadow-color: rgba(0, 0, 0, 0.1); --error-color: #d93025;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; background-color: var(--viewer-bg);
+        }
+        #viewer-container { flex-grow: 1; position: relative; min-height: 200px; }
+        #ui-container {
+            flex-shrink: 0; height: 35vh; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            background: var(--ui-bg); border-top: 1px solid var(--border-color);
+            padding: 1rem; overflow-y: auto; display: flex; justify-content: center;
+        }
+        #ui-content {
+            width: 100%; max-width: 1000px; display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;
+        }
+        .card {
+            background-color: var(--panel-bg); border-radius: 12px; padding: 1.25rem;
+            box-shadow: 0 4px 12px var(--shadow-color); display: flex; flex-direction: column; gap: 0.75rem;
+        }
+        .card h2 {
+            font-size: 1rem; color: var(--text-color); padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .btn, .file-label {
+            display: block; width: 100%; padding: 0.8rem; border: 1px solid var(--border-color);
+            border-radius: 8px; font-size: 0.9rem; font-weight: 500;
+            text-align: center; cursor: pointer; transition: all 0.2s ease;
+            background-color: #e9e9eb; color: var(--text-color);
+        }
+        .btn { border: none; background-color: var(--primary-color); color: white; font-weight: 600; }
+        .btn:disabled, .file-label.disabled {
+            background-color: #e9e9eb !important; color: #8e8e93 !important; cursor: not-allowed; opacity: 0.7;
+        }
+        #status-log {
+            font-size: 0.85rem; text-align: center; color: #636366; padding: 0.5rem;
+            background-color: #e9e9eb; border-radius: 6px; margin-top: auto; transition: all 0.3s ease;
+        }
+        #status-log.error { background-color: #fdd8d6; color: var(--error-color); }
+        #loader {
+            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
+            border: 4px solid #dcdce1; border-top-color: var(--primary-color);
+            border-radius: 50%; animation: spin 1s linear infinite; transform: translate(-50%, -50%);
+        }
+        #loader.hidden { display: none; }
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.158.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/" } }</script>
 </head>
-<body class="bg-gray-800 text-white overflow-hidden flex flex-col h-screen">
-
-    <header class="bg-gray-900 shadow-lg z-10 p-3 flex items-center justify-center">
-        <h1 class="text-xl font-bold tracking-tight">GLB Animation Baker</h1>
-    </header>
-
-    <div class="flex-grow flex flex-col md:flex-row min-h-0">
-        <div id="canvas-container" class="flex-grow relative w-full md:w-2/3 h-1/2 md:h-full bg-gray-700">
-            <div id="loader" class="absolute top-1/2 left-1/2 text-center p-6 bg-gray-900 bg-opacity-80 rounded-lg shadow-xl hidden">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400 mx-auto"></div>
-                <p id="loader-text" class="mt-4 text-lg font-semibold">Loading...</p>
+<body>
+    <div id="viewer-container">
+        <div id="loader" class="hidden"></div>
+    </div>
+    <div id="ui-container">
+        <div id="ui-content">
+            <div class="card">
+                <h2>1. Load Character</h2>
+                <label for="model-input" class="file-label">Load .glb File</label>
+                <input type="file" id="model-input" accept=".glb" hidden>
+                 <div id="status-log">Load a GLB model to start.</div>
             </div>
-            <div id="instructions" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center p-4">
-                <p class="text-lg text-gray-400 font-medium">Upload a base GLB model to begin</p>
+            <div class="card">
+                <h2>2. Load Textures</h2>
+                <label for="texture-input" class="file-label disabled">Load Images</label>
+                <input type="file" id="texture-input" accept=".png, .jpg, .jpeg" multiple hidden disabled>
+            </div>
+            <div class="card">
+                <h2>3. Process & Export</h2>
+                <button id="process-btn" class="btn" disabled>Remove Rig & T-Pose</button>
+                <button id="export-btn" class="btn" disabled>Export as .glb</button>
             </div>
         </div>
-
-        <aside class="w-full md:w-1/3 h-1/2 md:h-full bg-gray-900 flex flex-col p-4 space-y-4 overflow-y-auto">
-            <div class="space-y-3">
-                <label for="model-upload" class="btn btn-primary cursor-pointer">1. Upload Base Model (.glb)</label>
-                <input type="file" id="model-upload" class="hidden" accept=".glb">
-
-                <label for="anim-upload" id="anim-upload-label" class="btn btn-secondary btn-disabled">2. Add Animations (.glb)</label>
-                <input type="file" id="anim-upload" class="hidden" accept=".glb" multiple disabled>
-            </div>
-            
-            <div id="model-info" class="hidden">
-                <h2 class="text-lg font-semibold mb-2 text-gray-300">Model Name</h2>
-                <div id="model-name-container" class="anim-item cursor-pointer hover:bg-gray-600 transition-colors">
-                    <span id="model-name" class="flex-1 min-w-0 truncate font-semibold"></span>
-                </div>
-            </div>
-
-            <div class="flex-grow flex flex-col min-h-0">
-                <h2 class="text-lg font-semibold mb-2 text-gray-300">Animation Clips (<span id="anim-count">0</span>)</h2>
-                <div id="animationList" class="flex-grow bg-gray-800 rounded-lg p-3 space-y-2 overflow-y-auto">
-                     <p id="no-anims-msg" class="text-gray-500 text-center py-4">No animations loaded.</p>
-                </div>
-            </div>
-            
-            <div>
-                <button id="export-btn" class="btn btn-secondary" disabled>3. Export Combined GLB</button>
-            </div>
-
-            <div class="text-xs text-gray-500 pt-2 border-t border-gray-700">
-                <p>Status: <span id="status-text">Ready.</span></p>
-            </div>
-        </aside>
     </div>
-
-    <div id="context-menu" class="hidden absolute bg-gray-600 rounded-md shadow-lg z-50 text-white w-36">
-        <button id="menu-play-btn" class="block w-full text-left px-4 py-2 text-sm hover:bg-indigo-500 rounded-t-md">Play</button>
-        <button id="menu-edit-btn" class="block w-full text-left px-4 py-2 text-sm hover:bg-indigo-500">Edit Name</button>
-        <button id="menu-delete-btn" class="block w-full text-left px-4 py-2 text-sm text-red-300 hover:bg-red-500 rounded-b-md">Delete</button>
-    </div>
-
-    <div id="rename-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 hidden">
-        <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 class="text-xl font-bold mb-4">Rename Item</h3>
-            <p class="text-sm text-gray-400 mb-1">Original name:</p>
-            <p id="modal-original-name" class="bg-gray-900 rounded px-2 py-1 text-sm truncate mb-4"></p>
-            <label for="modal-new-name" class="block text-sm font-medium text-gray-300 mb-2">New name:</label>
-            <input type="text" id="modal-new-name" class="anim-input w-full mb-4">
-            <p id="modal-error" class="text-red-400 text-sm mb-4 hidden"></p>
-            <button id="modal-confirm-btn" class="btn btn-primary">Confirm</button>
-        </div>
-    </div>
-
-    <script type="importmap">
-        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
-    </script>
+    
     <script type="module">
         import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-        const dom = {
-            canvasContainer: document.getElementById('canvas-container'),
-            modelUpload: document.getElementById('model-upload'),
-            animUpload: document.getElementById('anim-upload'),
-            animUploadLabel: document.getElementById('anim-upload-label'),
-            exportBtn: document.getElementById('export-btn'),
-            animationList: document.getElementById('animationList'),
-            animCount: document.getElementById('anim-count'),
-            statusText: document.getElementById('status-text'),
-            loader: document.getElementById('loader'),
-            loaderText: document.getElementById('loader-text'),
-            instructions: document.getElementById('instructions'),
-            contextMenu: document.getElementById('context-menu'),
-            renameModal: document.getElementById('rename-modal'),
-            modelInfo: document.getElementById('model-info'),
-            modelName: document.getElementById('model-name'),
-            modelNameContainer: document.getElementById('model-name-container'),
-        };
-        let scene, camera, renderer, controls, clock, originalGltf = null, mixer = null, activeAction = null;
+        let scene, camera, renderer, controls, currentModel = null, originalModel = null;
+        const viewerContainer = document.getElementById('viewer-container'), modelInput = document.getElementById('model-input'),
+            textureInput = document.getElementById('texture-input'), processBtn = document.getElementById('process-btn'),
+            exportBtn = document.getElementById('export-btn'), textureLabel = document.querySelector('label[for="texture-input"]'),
+            statusLog = document.getElementById('status-log'), loaderElement = document.getElementById('loader');
 
         function init() {
             scene = new THREE.Scene();
-            clock = new THREE.Clock();
+            scene.background = new THREE.Color(0xf0f0f0);
+            scene.fog = new THREE.Fog(0xf0f0f0, 10, 50);
+            camera = new THREE.PerspectiveCamera(50, viewerContainer.clientWidth / viewerContainer.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 3.5);
+
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(dom.canvasContainer.clientWidth, dom.canvasContainer.clientHeight);
+            renderer.setSize(viewerContainer.clientWidth, viewerContainer.clientHeight);
+            renderer.shadowMap.enabled = true;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1;
-            dom.canvasContainer.appendChild(renderer.domElement);
-            const pmremGenerator = new THREE.PMREMGenerator(renderer);
-            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-            camera = new THREE.PerspectiveCamera(45, dom.canvasContainer.clientWidth / dom.canvasContainer.clientHeight, 0.1, 100);
-            camera.position.set(0, 1, 3);
+            viewerContainer.appendChild(renderer.domElement);
+            
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+            dirLight.position.set(3, 10, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+            
+            const floor = new THREE.Mesh( new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x999999, depthWrite: false }) );
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
             controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1, 0);
             controls.enableDamping = true;
-            controls.target.set(0, 0.8, 0);
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
-            scene.add(hemiLight);
-            window.addEventListener('resize', onWindowResize);
-            dom.modelUpload.addEventListener('change', handleModelUpload);
-            dom.animUpload.addEventListener('change', handleAnimUpload);
-            dom.exportBtn.addEventListener('click', exportGLB);
-            dom.modelNameContainer.addEventListener('click', handleModelRename);
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.update();
             animate();
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            if (mixer) mixer.update(delta);
-            controls.update();
-            renderer.render(scene, camera);
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        function logStatus(message, level = 'info') {
+            statusLog.textContent = message;
+            statusLog.className = 'status-log';
+            if (level === 'error') statusLog.classList.add('error');
+        }
+        function resetScene() {
+            if (currentModel) scene.remove(currentModel);
+            currentModel = null; originalModel = null;
+            textureInput.disabled = true; textureLabel.classList.add('disabled');
+            processBtn.disabled = true; exportBtn.disabled = true;
         }
 
-        function onWindowResize() {
-            camera.aspect = dom.canvasContainer.clientWidth / dom.canvasContainer.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(dom.canvasContainer.clientWidth, dom.canvasContainer.clientHeight);
-        }
+        const textureLoader = new THREE.TextureLoader();
+        const gltfLoader = new GLTFLoader();
+        
+        const textureMap = {
+            _albedo: 'map', _color: 'map', _diffuse: 'map', _basecolor: 'map',
+            _normal: 'normalMap', _n: 'normalMap',
+            _roughness: 'roughnessMap', _rough: 'roughnessMap',
+            _metallic: 'metalnessMap', _metal: 'metalnessMap',
+            _ao: 'aoMap',
+            _emissive: 'emissiveMap'
+        };
 
-        async function handleModelUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            dom.instructions.style.display = 'none';
-            showLoader('Loading Model...');
-            try {
-                const fileBuffer = await file.arrayBuffer();
-                new GLTFLoader().parse(fileBuffer, '', (gltf) => {
-                    if (originalGltf?.scene) scene.remove(originalGltf.scene);
-                    if (mixer) mixer.stopAllAction();
-                    originalGltf = gltf;
-                    originalGltf.scene.name = file.name.replace(/\.glb$/i, '');
-                    originalGltf.animations = originalGltf.animations || [];
-                    
-                    scene.add(originalGltf.scene);
-                    mixer = new THREE.AnimationMixer(originalGltf.scene);
-                    
-                    const box = new THREE.Box3().setFromObject(originalGltf.scene);
-                    const center = box.getCenter(new THREE.Vector3());
-                    originalGltf.scene.position.sub(center);
-                    
-                    dom.modelName.textContent = originalGltf.scene.name;
-                    dom.modelInfo.classList.remove('hidden');
-
-                    updateAnimationList();
-                    enableAnimUpload();
-                    updateStatus(`Model "${originalGltf.scene.name}" loaded.`);
-                    hideLoader();
-                });
-            } catch (error) {
-                updateStatus('Error loading model.', true);
-                hideLoader();
-            }
-        }
-
-        async function handleAnimUpload(event) {
-            const files = event.target.files;
-            if (!files.length) return;
-            showLoader(`Loading ${files.length} Animation(s)...`);
-            let animationsAdded = 0;
-            const loader = new GLTFLoader();
-
-            for (const file of files) {
-                try {
-                    const fileBuffer = await file.arrayBuffer();
-                    const gltf = await new Promise((resolve, reject) => loader.parse(fileBuffer, '', resolve, reject));
-                    gltf.animations?.forEach(clip => {
-                        let finalName = clip.name || 'animation';
-                        let counter = 1;
-                        while (originalGltf.animations.some(a => a.name === finalName)) {
-                            finalName = `${clip.name || 'animation'}_${counter++}`;
-                        }
-                        clip.name = finalName;
-                        originalGltf.animations.push(clip);
-                        animationsAdded++;
-                    });
-                } catch (err) {
-                    updateStatus(`Error processing ${file.name}.`, true);
+        function applyTextures(model, textureFiles) {
+            if (textureFiles.length === 0) return;
+            logStatus(`Applying ${textureFiles.length} texture(s)...`);
+            
+            const materials = new Set();
+            model.traverse(node => {
+                if ((node.isMesh || node.isSkinnedMesh) && node.material) {
+                    materials.add(node.material);
                 }
-            }
+            });
 
-            updateAnimationList();
-            updateStatus(`${animationsAdded} new animation(s) added.`);
-            hideLoader();
+            textureFiles.forEach(file => {
+                const url = URL.createObjectURL(file);
+                textureLoader.load(url, (texture) => {
+                    texture.flipY = false;
+                    const fileName = file.name.toLowerCase();
+                    let assigned = false;
+                    for (const suffix in textureMap) {
+                        if (fileName.includes(suffix)) {
+                            const mapType = textureMap[suffix];
+                            if (mapType === 'map' || mapType === 'emissiveMap') texture.encoding = THREE.sRGBEncoding;
+                            materials.forEach(material => {
+                                if (material.hasOwnProperty(mapType)) {
+                                    material[mapType] = texture;
+                                    material.needsUpdate = true;
+                                    assigned = true;
+                                }
+                            });
+                            break;
+                        }
+                    }
+                    if(assigned) console.log(`Applied ${file.name}`);
+                    URL.revokeObjectURL(url);
+                });
+            });
+            logStatus("Textures applied successfully.");
         }
 
-        function exportGLB() {
-            if (!originalGltf) return;
-            showLoader('Exporting GLB...');
-            new GLTFExporter().parse(originalGltf.scene, (result) => {
+        modelInput.addEventListener('change', (event) => {
+            const file = event.target.files[0]; if (!file) return;
+            resetScene();
+            logStatus(`Loading model: ${file.name}`);
+            loaderElement.classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                gltfLoader.parse(e.target.result, '', (gltf) => {
+                    const model = gltf.scene;
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    if (size.y > 0) model.scale.setScalar(1.65 / size.y);
+                    
+                    const scaledBox = new THREE.Box3().setFromObject(model);
+                    model.position.y -= scaledBox.min.y;
+                    model.traverse(node => { if (node.isMesh) node.castShadow = true; });
+                    
+                    originalModel = model; currentModel = model;
+                    scene.add(model);
+                    processBtn.disabled = false;
+                    textureInput.disabled = false; textureLabel.classList.remove('disabled');
+                    loaderElement.classList.add('hidden');
+                    logStatus("Model loaded. You can now load textures.");
+                }, (error) => {
+                    logStatus("Error: Failed to parse GLB file.", 'error');
+                    console.error(error);
+                    loaderElement.classList.add('hidden');
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        textureInput.addEventListener('change', (event) => {
+            if (!currentModel) return;
+            const files = Array.from(event.target.files);
+            if (files.length > 0) {
+                applyTextures(currentModel, files);
+            }
+        });
+        
+        processBtn.addEventListener('click', () => {
+            if (!originalModel) return;
+            logStatus('Processing: Removing rig...');
+            const staticModel = new THREE.Group();
+            originalModel.traverse(child => {
+                if (child.isSkinnedMesh) staticModel.add(new THREE.Mesh(child.geometry, child.material));
+                else if (child.isMesh) staticModel.add(child.clone());
+            });
+            staticModel.applyMatrix4(originalModel.matrixWorld);
+            scene.remove(currentModel);
+            currentModel = staticModel; scene.add(currentModel);
+            logStatus('Rig removed. Ready to export.');
+            exportBtn.disabled = false; processBtn.disabled = true;
+        });
+
+        exportBtn.addEventListener('click', () => {
+            if (!currentModel) return;
+            logStatus('Exporting to GLB...');
+            new GLTFExporter().parse(currentModel, result => {
                 const blob = new Blob([result], { type: 'model/gltf-binary' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const safeFilename = (originalGltf.scene.name || 'model').replace(/[^a-z0-9_.-]/gi, '_').toLowerCase();
-                a.download = `${safeFilename}_baked.glb`;
-                a.click();
-                URL.revokeObjectURL(url);
-                hideLoader();
-                updateStatus('Export successful!');
-            }, (error) => {
-                updateStatus('Export failed.', true);
-                hideLoader();
-            }, { binary: true, animations: originalGltf.animations });
-        }
-        
-        // --- UI FUNCTIONS ---
-
-        function updateAnimationList() {
-            dom.animationList.innerHTML = '';
-            const clips = originalGltf?.animations || [];
-            dom.animCount.textContent = clips.length;
-            if (clips.length > 0) {
-                clips.forEach(clip => {
-                    const item = createAnimationListItem(clip);
-                    dom.animationList.appendChild(item);
-                });
-                enableExport();
-            } else {
-                 dom.animationList.innerHTML = '<p id="no-anims-msg" class="text-gray-500 text-center py-4">No animations loaded.</p>';
-            }
-        }
-
-        function createAnimationListItem(clip) {
-            const item = document.createElement('div');
-            item.className = 'anim-item';
-            item.dataset.animName = clip.name;
-            item.onclick = (e) => showContextMenu(e, clip.name);
-
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'anim-item-name';
-            nameSpan.textContent = clip.name;
-            nameSpan.title = clip.name;
-
-            item.append(nameSpan);
-            return item;
-        }
-
-        function showContextMenu(event, clipName) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            const clip = THREE.AnimationClip.findByName(originalGltf.animations, clipName);
-            if (!clip) return;
-
-            const menuPlayBtn = document.getElementById('menu-play-btn');
-            const menuEditBtn = document.getElementById('menu-edit-btn');
-            const menuDeleteBtn = document.getElementById('menu-delete-btn');
-
-            menuPlayBtn.onclick = () => {
-                playAnimation(clip.name);
-                hideContextMenu();
-            };
-            menuEditBtn.onclick = () => {
-                hideContextMenu();
-                openGenericRenameModal({
-                    currentName: clip.name,
-                    title: 'Rename Animation',
-                    onConfirm: (newName) => {
-                        if (!newName) return 'Name cannot be empty.';
-                        if (originalGltf.animations.some(a => a.name === newName) && newName !== clip.name) {
-                            return 'This name is already in use.';
-                        }
-                        updateStatus(`Renamed animation: "${clip.name}" to "${newName}".`);
-                        clip.name = newName;
-                        updateAnimationList();
-                        return null;
-                    }
-                });
-            };
-            menuDeleteBtn.onclick = () => {
-                hideContextMenu();
-                if (confirm(`Are you sure you want to delete "${clip.name}"?`)) {
-                    const animIndex = originalGltf.animations.findIndex(a => a.name === clip.name);
-                    if (animIndex > -1) {
-                        originalGltf.animations.splice(animIndex, 1);
-                        updateStatus(`Deleted animation: ${clip.name}`);
-                        updateAnimationList();
-                    }
-                }
-            };
-
-            const rect = event.currentTarget.getBoundingClientRect();
-            dom.contextMenu.style.top = `${rect.bottom}px`;
-            dom.contextMenu.style.left = `${rect.left}px`;
-            dom.contextMenu.classList.remove('hidden');
-            setTimeout(() => window.addEventListener('click', hideContextMenu, { once: true }), 0);
-        }
-        
-        function hideContextMenu() {
-            dom.contextMenu.classList.add('hidden');
-        }
-
-        function handleModelRename() {
-            if (!originalGltf?.scene) return;
-            openGenericRenameModal({
-                currentName: originalGltf.scene.name,
-                title: 'Rename Model',
-                onConfirm: (newName) => {
-                    if (!newName) return 'Name cannot be empty.';
-                    updateStatus(`Model renamed to "${newName}".`);
-                    originalGltf.scene.name = newName;
-                    dom.modelName.textContent = newName;
-                    return null;
-                }
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'model_static.glb';
+                link.click();
+                URL.revokeObjectURL(link.href);
+                logStatus('Export complete!');
+            }, error => {
+                logStatus('Export failed. See console.', 'error');
+                console.error('An error happened during parsing', error);
             });
-        }
-        
-        function openGenericRenameModal({ currentName, title, onConfirm }) {
-            hideContextMenu();
-            const modal = dom.renameModal;
-            const modalTitle = modal.querySelector('h3');
-            const originalNameEl = document.getElementById('modal-original-name');
-            const newNameInput = document.getElementById('modal-new-name');
-            const confirmBtn = document.getElementById('modal-confirm-btn');
-            const errorEl = document.getElementById('modal-error');
-            
-            modalTitle.textContent = title;
-            originalNameEl.textContent = currentName;
-            newNameInput.value = currentName;
-            errorEl.classList.add('hidden');
-            modal.classList.remove('hidden');
-            newNameInput.focus();
-            newNameInput.select();
+        });
 
-            const confirmHandler = () => {
-                const newName = newNameInput.value.trim();
-                const validationError = onConfirm(newName);
-
-                if (validationError) {
-                    errorEl.textContent = validationError;
-                    errorEl.classList.remove('hidden');
-                } else {
-                    modal.classList.add('hidden');
-                }
-            };
-            
-            const newConfirmBtn = confirmBtn.cloneNode(true);
-            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-            newConfirmBtn.addEventListener('click', confirmHandler);
-        }
-
-        // --- CORE LOGIC & HELPERS ---
-        
-        function playAnimation(name) {
-            if (!mixer) return;
-            if (activeAction) activeAction.fadeOut(0.2);
-            const clip = THREE.AnimationClip.findByName(originalGltf.animations, name);
-            if (!clip) return;
-            activeAction = mixer.clipAction(clip).reset().fadeIn(0.2).play();
-            document.querySelectorAll('#animationList .anim-item').forEach(item => {
-                item.classList.toggle('active', item.dataset.animName === name);
-            });
-            updateStatus(`Playing: ${name}`);
-        }
-
-        function enableAnimUpload() { dom.animUpload.disabled = false; dom.animUploadLabel.classList.remove('btn-disabled', 'btn-secondary'); dom.animUploadLabel.classList.add('btn-primary'); }
-        function enableExport() { dom.exportBtn.disabled = false; dom.exportBtn.classList.remove('btn-disabled', 'btn-secondary'); dom.exportBtn.classList.add('btn-primary'); }
-        function updateStatus(message, isError = false) { dom.statusText.textContent = message; dom.statusText.style.color = isError ? '#f56565' : '#a0aec0'; }
-        function showLoader(text) { dom.loaderText.textContent = text; dom.loader.classList.remove('hidden'); }
-        function hideLoader() { dom.loader.classList.add('hidden'); }
-        function registerServiceWorker() { if ('serviceWorker' in navigator) { const swContent = ` const CACHE_NAME = 'glb-baker-cache-v5'; self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.add('.'))) }); self.addEventListener('fetch', e => { e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))) }); `; const swUrl = URL.createObjectURL(new Blob([swContent], { type: 'application/javascript' })); navigator.serviceWorker.register(swUrl).catch(e => console.error('SW registration failed:', e)); } }
+        const resizeObserver = new ResizeObserver(entries => {
+            const { width, height } = entries[0].contentRect;
+            camera.aspect = width / height; camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+        resizeObserver.observe(viewerContainer);
         
         init();
-        registerServiceWorker();
     </script>
 </body>
 </html>
