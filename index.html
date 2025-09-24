@@ -23,6 +23,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            z-index: 10;
         }
         h1 {
             font-size: 1.2em;
@@ -77,6 +78,31 @@
             top: 0;
             opacity: 0;
         }
+        
+        /* --- DEBUGGER CSS START --- */
+        #debugger-console {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            width: calc(100% - 40px);
+            max-width: 500px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #444;
+            border-radius: 5px;
+            overflow-y: scroll;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #eee;
+            z-index: 100;
+        }
+        .log-msg { margin: 0 0 5px 0; }
+        .log-error { color: #ff6b6b; }
+        .log-warn { color: #ffd966; }
+        .log-info { color: #72c3fc; }
+        /* --- DEBUGGER CSS END --- */
+
     </style>
 </head>
 <body>
@@ -102,11 +128,39 @@
             <input type="range" id="looseness-slider" min="0" max="0.1" step="0.001" value="0">
         </div>
     </div>
-
+    
+    <div id="debugger-console"></div>
     <script type="module">
         import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
         import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
         import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/controls/OrbitControls.js';
+
+        // --- DEBUGGER JAVASCRIPT START ---
+        const debuggerConsole = document.getElementById('debugger-console');
+        function logToScreen(message, type = 'log') {
+            const msgEl = document.createElement('div');
+            msgEl.textContent = `> ${message}`;
+            msgEl.classList.add('log-msg');
+            if (type === 'error') msgEl.classList.add('log-error');
+            if (type === 'warn') msgEl.classList.add('log-warn');
+            if (type === 'info') msgEl.classList.add('log-info');
+            debuggerConsole.appendChild(msgEl);
+            debuggerConsole.scrollTop = debuggerConsole.scrollHeight;
+        }
+
+        // Override console methods
+        const originalConsole = { log: console.log, error: console.error, warn: console.warn, info: console.info };
+        console.log = (...args) => { logToScreen(args.join(' ')); originalConsole.log.apply(console, args); };
+        console.error = (...args) => { logToScreen(args.join(' '), 'error'); originalConsole.error.apply(console, args); };
+        console.warn = (...args) => { logToScreen(args.join(' '), 'warn'); originalConsole.warn.apply(console, args); };
+        console.info = (...args) => { logToScreen(args.join(' '), 'info'); originalConsole.info.apply(console, args); };
+
+        // Catch global errors
+        window.onerror = (message, source, lineno, colno, error) => {
+            console.error(`Uncaught Error: ${message} at ${source.split('/').pop()}:${lineno}`);
+        };
+        // --- DEBUGGER JAVASCRIPT END ---
+
 
         // Core THREE.js variables
         let scene, camera, renderer, controls;
@@ -126,6 +180,7 @@
 
 
         function init() {
+            console.info("Initializing scene...");
             // Scene
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x333333);
@@ -166,35 +221,55 @@
             loosenessSlider.addEventListener('input', adjustLooseness);
 
             animate();
+            console.info("Initialization complete.");
         }
 
         function loadModel(url) {
+            console.log("Attempting to load model from:", url.substring(0, 50) + '...');
             const loader = new GLTFLoader();
             loader.load(url, (gltf) => {
+                console.log("✅ GLB model parsed successfully.");
                 if (baseModel) {
                     scene.remove(baseModel);
+                    console.log("Removed old model.");
                 }
                 baseModel = gltf.scene;
-                // Ensure the model is centered and scaled appropriately
+                
                 const box = new THREE.Box3().setFromObject(baseModel);
                 const center = box.getCenter(new THREE.Vector3());
                 baseModel.position.sub(center); // center model
                 scene.add(baseModel);
+                console.log("New model added to scene and centered.");
+                
                 clearSelections();
-            }, undefined, (error) => {
-                console.error('An error happened while loading the model:', error);
-                alert('Failed to load model.');
+            }, 
+            (xhr) => { // onProgress callback
+                const percentComplete = (xhr.loaded / xhr.total) * 100;
+                // console.log(`Model loading progress: ${Math.round(percentComplete)}%`);
+            },
+            (error) => {
+                // THIS IS THE CRITICAL PART FOR DEBUGGING
+                console.error("❌ An error happened during model loading:", error);
             });
         }
         
         function handleFileUpload(event) {
+            console.log("File input changed.");
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file) {
+                console.warn("No file selected.");
+                return;
+            }
+            console.log(`File selected: ${file.name} (${Math.round(file.size / 1024)} KB)`);
 
             const reader = new FileReader();
             reader.onload = (e) => {
+                console.log("File read into memory. Passing to loader...");
                 const url = e.target.result;
                 loadModel(url);
+            };
+            reader.onerror = (e) => {
+                console.error("❌ FileReader error:", e);
             };
             reader.readAsDataURL(file);
         }
@@ -218,6 +293,7 @@
         }
 
         function onCanvasClick(event) {
+            if (event.target.closest('#info-panel, #debugger-console')) return; // Ignore clicks on UI
             if (!isSelectionMode || !baseModel) return;
 
             const mouse = new THREE.Vector2(
@@ -241,8 +317,6 @@
             if (intersectFound) {
                 const point = intersectFound.point;
                 selectionPoints.push(point);
-
-                // Add a visual marker
                 const markerGeo = new THREE.SphereGeometry(0.015, 16, 16);
                 const markerMat = new THREE.MeshBasicMaterial({ color: 0x00aaff });
                 const marker = new THREE.Mesh(markerGeo, markerMat);
@@ -253,25 +327,21 @@
 
         function createClothing() {
             if (selectionPoints.length < 3) {
-                alert("Please select at least 3 points to define an area.");
+                console.warn("Please select at least 3 points to define an area.");
                 return;
             }
             if (!baseModel) {
-                alert("Please load a model first.");
+                console.warn("Please load a model first.");
                 return;
             }
             
-            clearClothing(); // Remove old clothing if it exists
+            clearClothing();
 
             let sourceMesh;
-            baseModel.traverse(child => {
-                if (child.isMesh && !sourceMesh) {
-                    sourceMesh = child;
-                }
-            });
+            baseModel.traverse(child => { if (child.isMesh && !sourceMesh) { sourceMesh = child; } });
 
             if (!sourceMesh || !sourceMesh.geometry.attributes.position) {
-                alert("Could not find a valid mesh in the model.");
+                console.error("Could not find a valid mesh in the model.");
                 return;
             }
 
@@ -279,14 +349,12 @@
             const sourceNormals = sourceMesh.geometry.attributes.normal;
             const sourceIndex = sourceMesh.geometry.index;
 
-            const selectionRadius = 0.3; // How far the selection spreads from each point
+            const selectionRadius = 0.3;
             const selectedVertexIndices = new Set();
 
-            // Find all vertices within the radius of any selection point
             for (let i = 0; i < sourcePositions.count; i++) {
                 const vertex = new THREE.Vector3().fromBufferAttribute(sourcePositions, i);
-                sourceMesh.localToWorld(vertex); // Convert to world space
-
+                sourceMesh.localToWorld(vertex);
                 for (const point of selectionPoints) {
                     if (vertex.distanceTo(point) < selectionRadius) {
                         selectedVertexIndices.add(i);
@@ -299,7 +367,6 @@
             const newVertices = [];
             const newNormals = [];
 
-            // Create new vertex/normal arrays from selected vertices
             selectedVertexIndices.forEach(index => {
                 oldToNewIndexMap.set(index, newVertices.length / 3);
                 newVertices.push(sourcePositions.getX(index), sourcePositions.getY(index), sourcePositions.getZ(index));
@@ -307,19 +374,17 @@
             });
 
             const newIndices = [];
-            // Rebuild faces using only the selected vertices
             for (let i = 0; i < sourceIndex.count; i += 3) {
                 const a = sourceIndex.getX(i);
                 const b = sourceIndex.getY(i);
                 const c = sourceIndex.getZ(i);
-
                 if (selectedVertexIndices.has(a) && selectedVertexIndices.has(b) && selectedVertexIndices.has(c)) {
                     newIndices.push(oldToNewIndexMap.get(a), oldToNewIndexMap.get(b), oldToNewIndexMap.get(c));
                 }
             }
             
             if (newIndices.length === 0) {
-              alert("No faces were selected. Try placing points closer together or increasing the selection area.");
+              console.warn("No faces were selected. Try placing points closer together.");
               return;
             }
 
@@ -336,13 +401,11 @@
             
             clothingMesh = new THREE.Mesh(clothingGeometry, clothingMaterial);
             scene.add(clothingMesh);
-
-            // Show controls and reset slider
+            
             sliderBox.style.display = 'flex';
             loosenessSlider.value = 0;
             loosenessValue.textContent = '0.0';
-
-            toggleSelectionMode(); // Exit selection mode
+            toggleSelectionMode();
         }
         
         function clearClothing() {
@@ -362,20 +425,16 @@
             if (isSelectionMode) {
               toggleSelectionMode();
             }
+            console.log("Selections cleared.");
         }
 
         function adjustLooseness() {
             if (!clothingMesh) return;
-            
             const loosenessFactor = parseFloat(loosenessSlider.value);
             loosenessValue.textContent = loosenessFactor.toFixed(3);
-
-            // The geometry stores the ORIGINAL positions. We re-calculate the displaced positions
-            // from the original each time to avoid cumulative errors.
             const originalPositions = clothingMesh.geometry.attributes.position.clone();
             const normals = clothingMesh.geometry.attributes.normal;
             const newPositions = clothingMesh.geometry.attributes.position;
-
             for (let i = 0; i < originalPositions.count; i++) {
                 const pos = new THREE.Vector3().fromBufferAttribute(originalPositions, i);
                 const norm = new THREE.Vector3().fromBufferAttribute(normals, i);
