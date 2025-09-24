@@ -1,450 +1,418 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Clothing Generator PWA</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            overflow: hidden;
-            background-color: #111;
-            color: #fff;
-        }
-        #info-panel {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.6);
-            border-radius: 8px;
-            max-width: 320px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 10;
-        }
-        h1 {
-            font-size: 1.2em;
-            margin: 0 0 5px 0;
-        }
-        p {
-            font-size: 0.9em;
-            margin: 0 0 10px 0;
-            line-height: 1.4;
-        }
-        button, input[type="file"] {
-            width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #555;
-            background-color: #333;
-            color: #fff;
-            cursor: pointer;
-            font-size: 1em;
-            text-align: center;
-        }
-        button.active {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-        button:hover {
-            background-color: #444;
-        }
-        button.active:hover {
-            background-color: #0056b3;
-        }
-        .slider-container {
-            display: flex;
-            flex-direction: column;
-        }
-        label {
-            margin-bottom: 5px;
-            font-size: 0.9em;
-        }
-        input[type="range"] {
-            width: 100%;
-        }
-        .file-upload-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-        }
-        .file-upload-wrapper input[type=file] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-        }
-        
-        /* --- DEBUGGER CSS START --- */
-        #debugger-console {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            width: calc(100% - 40px);
-            max-width: 500px;
-            height: 150px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid #444;
-            border-radius: 5px;
-            overflow-y: scroll;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 0.8em;
-            color: #eee;
-            z-index: 100;
-        }
-        .log-msg { margin: 0 0 5px 0; }
-        .log-error { color: #ff6b6b; }
-        .log-warn { color: #ffd966; }
-        .log-info { color: #72c3fc; }
-        /* --- DEBUGGER CSS END --- */
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>PWA Clothing Creator</title>
 
-    </style>
+  <link rel="manifest" href='data:application/manifest+json,{
+    "name":"PWA Clothing Creator",
+    "short_name":"ClothingPWA",
+    "start_url":".",
+    "display":"standalone",
+    "background_color":"#0b0f14",
+    "theme_color":"#0b0f14",
+    "icons":[
+      {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUHEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
+    ]
+  }' />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ClothingPWA" />
+  <meta name="theme-color" content="#0b0f14" />
+
+  <style>
+    :root { --bg:#0b0f14; --fg:#e6eef6; --primary:#0099ff; --primary-light:#33aaff; --accent:#ff4757; }
+    html,body { height:100%; margin:0; overflow:hidden; }
+    body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; touch-action:none; }
+    #app { position:fixed; inset:0; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #viewer3d { position:fixed; top:0; left:0; right:0; height:50vh; z-index:1; touch-action:none; }
+    #viewer3d canvas { display:block; width:100%; height:100%; }
+    #content {
+      position:fixed; top:50vh; left:0; right:0; bottom:0;
+      padding:1rem; padding-left:calc(1rem + env(safe-area-inset-left));
+      padding-right:calc(1rem + env(safe-area-inset-right));
+      padding-bottom:calc(1rem + env(safe-area-inset-bottom));
+      overflow-y:auto; box-sizing:border-box; display:flex; flex-direction:column; gap:1rem; touch-action:pan-y;
+    }
+    .button { background:var(--primary); color:#fff; border:none; border-radius:8px; padding:12px 16px; font-size:1rem; font-weight:500; cursor:pointer; transition:background-color .2s; }
+    .button:hover { background:var(--primary-light); }
+    .button.accent { background:var(--accent); }
+    .button.accent:hover { background:#ff6b81; }
+    .button.ghost { background:transparent; border:1px solid #2a2f36; }
+    .button:disabled { background:#333; color:#777; cursor:not-allowed; }
+    .controls-grid { display:none; grid-template-columns:auto 1fr; gap:.5rem 1rem; align-items:center; }
+    .controls-grid label { text-align:right; opacity:.8; }
+    .controls-grid input[type="range"] { width:100%; }
+    #status { font-style:italic; color:#aaa; text-align:center; }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
+  <div id="app" role="application" aria-label="3D Clothing Creator PWA">
+    <input type="file" id="model-input" accept=".glb,.gltf" style="display:none" />
+    <div id="content">
+      <h1>Surface Painter</h1>
+      <button id="load-model-btn" class="button">Load Base Model (.glb)</button>
 
-    <div id="info-panel">
-        <h1>Clothing Generator</h1>
-        <p>
-            <b>1.</b> Use the "Select Area" button to start placing points on the model. <br>
-            <b>2.</b> Click "Create Clothing" to generate the mesh.
-        </p>
+      <div id="selection-controls" class="controls-grid">
+        <label for="pos-y">Up/Down</label>  <input type="range" id="pos-y"   min="-2"   max="2"   step="0.01" value="1">
+        <label for="pos-x">Left/Right</label><input type="range" id="pos-x"   min="-1.5" max="1.5" step="0.01" value="0">
+        <label for="pos-z">Fwd/Back</label>  <input type="range" id="pos-z"   min="-1.5" max="1.5" step="0.01" value="0">
+        <label for="scale-y">Height</label>  <input type="range" id="scale-y" min="0.1" max="2"   step="0.01" value="0.8">
+        <label for="scale-x">Width</label>   <input type="range" id="scale-x" min="0.1" max="2"   step="0.01" value="0.8">
+        <label for="scale-z">Depth</label>   <input type="range" id="scale-z" min="0.1" max="2"   step="0.01" value="0.8">
+      </div>
 
-        <div class="file-upload-wrapper">
-            <button>Upload GLB Model</button>
-            <input type="file" id="file-input" accept=".glb, .gltf">
-        </div>
+      <button id="add-box-btn" class="button" disabled>Add to Selection</button>
+      <button id="paint-btn" class="button accent" disabled>Paint Surface</button>
+      <button id="gen-mesh-btn" class="button ghost" disabled>Generate Mesh</button>
 
-        <button id="select-btn">Select Area</button>
-        <button id="create-btn">Create Clothing</button>
-        <button id="clear-btn">Clear Selections</button>
-
-        <div class="slider-container" style="display: none;" id="slider-box">
-            <label for="looseness-slider">Looseness: <span id="looseness-value">0.0</span></label>
-            <input type="range" id="looseness-slider" min="0" max="0.1" step="0.001" value="0">
-        </div>
+      <div id="status">Load a rigged GLB model to begin.</div>
     </div>
-    
-    <div id="debugger-console"></div>
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
-        import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/loaders/GLTFLoader.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/controls/OrbitControls.js';
+  </div>
 
-        // --- DEBUGGER JAVASCRIPT START ---
-        const debuggerConsole = document.getElementById('debugger-console');
-        function logToScreen(message, type = 'log') {
-            const msgEl = document.createElement('div');
-            msgEl.textContent = `> ${message}`;
-            msgEl.classList.add('log-msg');
-            if (type === 'error') msgEl.classList.add('log-error');
-            if (type === 'warn') msgEl.classList.add('log-warn');
-            if (type === 'info') msgEl.classList.add('log-info');
-            debuggerConsole.appendChild(msgEl);
-            debuggerConsole.scrollTop = debuggerConsole.scrollHeight;
-        }
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // Override console methods
-        const originalConsole = { log: console.log, error: console.error, warn: console.warn, info: console.info };
-        console.log = (...args) => { logToScreen(args.join(' ')); originalConsole.log.apply(console, args); };
-        console.error = (...args) => { logToScreen(args.join(' '), 'error'); originalConsole.error.apply(console, args); };
-        console.warn = (...args) => { logToScreen(args.join(' '), 'warn'); originalConsole.warn.apply(console, args); };
-        console.info = (...args) => { logToScreen(args.join(' '), 'info'); originalConsole.info.apply(console, args); };
+    let renderer, scene, camera, controls, container;
+    let baseModel = null;
+    let selectionBox = null;
+    const selectionVolumes = [];   // queued blue boxes
+    const committedVolumes = [];   // applied boxes (used by shader + mesh gen)
+    let visualVolumesGroup = null;
 
-        // Catch global errors
-        window.onerror = (message, source, lineno, colno, error) => {
-            console.error(`Uncaught Error: ${message} at ${source.split('/').pop()}:${lineno}`);
-        };
-        // --- DEBUGGER JAVASCRIPT END ---
+    const loadBtn = document.getElementById('load-model-btn');
+    const fileInput = document.getElementById('model-input');
+    const statusEl = document.getElementById('status');
+    const selectionControls = document.getElementById('selection-controls');
+    const addBoxBtn = document.getElementById('add-box-btn');
+    const paintBtn = document.getElementById('paint-btn');
+    const genMeshBtn = document.getElementById('gen-mesh-btn');
 
+    const sliders = {
+      y:  document.getElementById('pos-y'),
+      x:  document.getElementById('pos-x'),
+      z:  document.getElementById('pos-z'),
+      sy: document.getElementById('scale-y'),
+      sx: document.getElementById('scale-x'),
+      sz: document.getElementById('scale-z'),
+    };
 
-        // Core THREE.js variables
-        let scene, camera, renderer, controls;
-        let baseModel, clothingMesh;
-        const selectionPoints = [];
-        const selectionMarkers = new THREE.Group();
-        let isSelectionMode = false;
+    // ---------- CRISP BOX MASK (modify albedo before lighting) ----------
+    const MAX_BOXES = 16;
+    const maskUniforms = {
+      uBoxCount: { value: 0 },
+      uBoxMin:   { value: Array.from({length: MAX_BOXES}, () => new THREE.Vector3()) },
+      uBoxMax:   { value: Array.from({length: MAX_BOXES}, () => new THREE.Vector3()) },
+      uPaintColor: { value: new THREE.Color(0xffffff) } // pure white
+    };
 
-        // DOM Elements
-        const selectBtn = document.getElementById('select-btn');
-        const createBtn = document.getElementById('create-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        const fileInput = document.getElementById('file-input');
-        const loosenessSlider = document.getElementById('looseness-slider');
-        const loosenessValue = document.getElementById('looseness-value');
-        const sliderBox = document.getElementById('slider-box');
+    function attachMaskShader(material) {
+      material.onBeforeCompile = (shader) => {
+        shader.uniforms.uBoxCount  = maskUniforms.uBoxCount;
+        shader.uniforms.uBoxMin    = maskUniforms.uBoxMin;
+        shader.uniforms.uBoxMax    = maskUniforms.uBoxMax;
+        shader.uniforms.uPaintColor= { value: maskUniforms.uPaintColor.value };
 
+        // NOTE: correct newline \n (previous \\n broke compile)
+        shader.vertexShader =
+          'varying vec3 vWorldPos;\n' +
+          shader.vertexShader.replace(
+            'void main() {',
+            'void main(){\n  vWorldPos = (modelMatrix * vec4(position,1.0)).xyz;'
+          );
 
-        function init() {
-            console.info("Initializing scene...");
-            // Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x333333);
-            scene.add(selectionMarkers);
-
-            // Camera
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 1, 3);
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            document.body.appendChild(renderer.domElement);
-
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-            scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-            dirLight.position.set(3, 5, 3);
-            scene.add(dirLight);
-
-            // Controls
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.target.set(0, 1, 0);
-            controls.update();
-
-            // Load initial model
-            loadModel('https://cdn.jsdelivr.net/gh/Sean-Bradley/Bender-2-Three.js-2@main/resources/models/eva-animated.glb');
-
-            // Event Listeners
-            window.addEventListener('resize', onWindowResize);
-            window.addEventListener('click', onCanvasClick);
-            selectBtn.addEventListener('click', toggleSelectionMode);
-            createBtn.addEventListener('click', createClothing);
-            clearBtn.addEventListener('click', clearSelections);
-            fileInput.addEventListener('change', handleFileUpload);
-            loosenessSlider.addEventListener('input', adjustLooseness);
-
-            animate();
-            console.info("Initialization complete.");
-        }
-
-        function loadModel(url) {
-            console.log("Attempting to load model from:", url.substring(0, 50) + '...');
-            const loader = new GLTFLoader();
-            loader.load(url, (gltf) => {
-                console.log("✅ GLB model parsed successfully.");
-                if (baseModel) {
-                    scene.remove(baseModel);
-                    console.log("Removed old model.");
-                }
-                baseModel = gltf.scene;
-                
-                const box = new THREE.Box3().setFromObject(baseModel);
-                const center = box.getCenter(new THREE.Vector3());
-                baseModel.position.sub(center); // center model
-                scene.add(baseModel);
-                console.log("New model added to scene and centered.");
-                
-                clearSelections();
-            }, 
-            (xhr) => { // onProgress callback
-                const percentComplete = (xhr.loaded / xhr.total) * 100;
-                // console.log(`Model loading progress: ${Math.round(percentComplete)}%`);
-            },
-            (error) => {
-                // THIS IS THE CRITICAL PART FOR DEBUGGING
-                console.error("❌ An error happened during model loading:", error);
-            });
-        }
-        
-        function handleFileUpload(event) {
-            console.log("File input changed.");
-            const file = event.target.files[0];
-            if (!file) {
-                console.warn("No file selected.");
-                return;
+        const header = `
+          varying vec3 vWorldPos;
+          uniform int  uBoxCount;
+          uniform vec3 uBoxMin[${MAX_BOXES}];
+          uniform vec3 uBoxMax[${MAX_BOXES}];
+          uniform vec3 uPaintColor;
+          bool inAnyBox(vec3 p){
+            for (int i=0; i<${MAX_BOXES}; ++i){
+              if (i >= uBoxCount) break;
+              if (all(greaterThanEqual(p,uBoxMin[i])) && all(lessThanEqual(p,uBoxMax[i]))) return true;
             }
-            console.log(`File selected: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+            return false;
+          }
+        `;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                console.log("File read into memory. Passing to loader...");
-                const url = e.target.result;
-                loadModel(url);
-            };
-            reader.onerror = (e) => {
-                console.error("❌ FileReader error:", e);
-            };
-            reader.readAsDataURL(file);
+        shader.fragmentShader = header + shader.fragmentShader
+          .replace(
+            'vec4 diffuseColor = vec4( diffuse, opacity );',
+            `
+            vec4 diffuseColor = vec4( diffuse, opacity );
+            if (inAnyBox(vWorldPos)) {
+              diffuseColor.rgb = uPaintColor;
+            }
+            `
+          );
+
+        material.userData.shader = shader;
+      };
+      material.needsUpdate = true;
+    }
+
+    function updateMaskUniformsFromCommitted() {
+      const n = Math.min(committedVolumes.length, MAX_BOXES);
+      maskUniforms.uBoxCount.value = n;
+      for (let i = 0; i < n; i++) {
+        maskUniforms.uBoxMin.value[i].copy(committedVolumes[i].min);
+        maskUniforms.uBoxMax.value[i].copy(committedVolumes[i].max);
+      }
+      for (let i = n; i < MAX_BOXES; i++) {
+        maskUniforms.uBoxMin.value[i].set(0,0,0);
+        maskUniforms.uBoxMax.value[i].set(0,0,0);
+      }
+      if (baseModel?.material) baseModel.material.needsUpdate = true;
+      genMeshBtn.disabled = (n === 0) || !baseModel;
+    }
+    // --------------------------------------------------------------------
+
+    function initThree() {
+      scene = new THREE.Scene();
+
+      // gradient bg
+      const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0,0,0,2);
+      grad.addColorStop(0,'#595f66'); grad.addColorStop(1,'#33373d');
+      ctx.fillStyle = grad; ctx.fillRect(0,0,2,2);
+      scene.background = new THREE.CanvasTexture(canvas);
+
+      camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+      camera.position.set(0, 1.5, 3.5);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+      container = document.createElement('div'); container.id = 'viewer3d';
+      container.appendChild(renderer.domElement);
+      document.getElementById('app').prepend(container);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0,1,0); controls.enableDamping = true;
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2.5));
+      scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
+
+      visualVolumesGroup = new THREE.Group();
+      scene.add(visualVolumesGroup);
+
+      resize();
+    }
+
+    function createSelectionBox() {
+      if (selectionBox) return;
+      const geo = new THREE.BoxGeometry(1,1,1);
+      const mat = new THREE.MeshBasicMaterial({ color:0x0099ff, transparent:true, opacity:0.4 });
+      selectionBox = new THREE.Mesh(geo, mat);
+      scene.add(selectionBox);
+      updateSelectionBoxTransform();
+    }
+
+    function updateSelectionBoxTransform() {
+      if (!selectionBox) return;
+      selectionBox.position.set(+sliders.x.value, +sliders.y.value, +sliders.z.value);
+      selectionBox.scale.set(+sliders.sx.value, +sliders.sy.value, +sliders.sz.value);
+    }
+
+    function setupUI() {
+      loadBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', handleFileLoad);
+
+      Object.values(sliders).forEach(s => s.addEventListener('input', updateSelectionBoxTransform));
+
+      addBoxBtn.addEventListener('click', () => {
+        const redBox = selectionBox.clone();
+        redBox.material = new THREE.MeshBasicMaterial({ color:0xff4757, wireframe:true });
+        visualVolumesGroup.add(redBox);
+
+        const volume = new THREE.Box3().setFromObject(selectionBox); // world-space
+        selectionVolumes.push(volume);
+        statusEl.textContent = `${selectionVolumes.length} volume(s) queued.`;
+      });
+
+      // PAINT / HIGHLIGHT (unchanged)
+      paintBtn.addEventListener('click', () => {
+        if (!baseModel || selectionVolumes.length === 0) {
+          statusEl.textContent = "Please add at least one selection box first.";
+          return;
         }
+        committedVolumes.push(...selectionVolumes);
+        selectionVolumes.length = 0;
+        updateMaskUniformsFromCommitted();   // apply to shader mask
+        statusEl.textContent = `Paint applied (crisp shader mask).`;
+      });
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+      // GENERATE mesh from painted mask
+      genMeshBtn.addEventListener('click', () => {
+        if (!baseModel || committedVolumes.length === 0) {
+          statusEl.textContent = "Highlight areas first, then Generate.";
+          return;
         }
+        statusEl.textContent = "Generating mesh…";
+        setTimeout(() => {
+          const triCount = generateGarmentFromMask();
+          statusEl.textContent = `Generated garment mesh (${triCount} tris).`;
+        }, 10);
+      });
+    }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
+    function handleFileLoad(event) {
+      const file = event.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        new GLTFLoader().parse(e.target.result, '', (gltf) => {
+          resetScene();
+
+          baseModel = null;
+          gltf.scene.traverse(child => { if (child.isSkinnedMesh) baseModel = child; });
+
+          if (!baseModel) { statusEl.textContent = 'Error: No rigged mesh found in the GLB file.'; return; }
+
+          const originalMaterial = baseModel.material;
+          const newMaterial = originalMaterial.clone();
+          newMaterial.vertexColors = true;
+          newMaterial.skinning = true;        // <- ensure skinned rendering
+          attachMaskShader(newMaterial);
+          baseModel.material = newMaterial;
+          baseModel.frustumCulled = false;
+
+          // init vertex colors to original color (optional)
+          const g = baseModel.geometry;
+          const count = g.attributes.position.count;
+          const cols = new Float32Array(count * 3);
+          const c0 = originalMaterial.color || new THREE.Color(0xffffff);
+          for (let i = 0; i < count; i++) { cols[i*3+0]=c0.r; cols[i*3+1]=c0.g; cols[i*3+2]=c0.b; }
+          g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+
+          scene.add(baseModel);
+          createSelectionBox();
+          selectionControls.style.display = 'grid';
+          addBoxBtn.disabled = false;
+          paintBtn.disabled = false;
+          genMeshBtn.disabled = committedVolumes.length === 0;
+          statusEl.textContent = 'Model loaded. Position the blue box then Add to Selection.';
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function resetScene() {
+      if (baseModel) scene.remove(baseModel);
+      selectionBox = null;
+      selectionVolumes.length = 0;
+      committedVolumes.length = 0;
+      visualVolumesGroup?.clear();
+      updateMaskUniformsFromCommitted();
+    }
+
+    function resize() {
+      if (!container || !renderer || !camera) return;
+      const w = container.clientWidth, h = container.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+
+    function animate() { requestAnimationFrame(animate); controls?.update(); renderer?.render(scene,camera); }
+
+    // --------- GARMENT GENERATION (same as before) ----------
+    function generateGarmentFromMask() {
+      const geom = baseModel.geometry;
+      const pos = geom.attributes.position;
+      const idx = geom.index;
+      const triCount = idx ? idx.count / 3 : pos.count / 3;
+
+      // bake skinned world-space verts
+      const worldVerts = new Array(pos.count);
+      const tmp = new THREE.Vector3();
+      baseModel.updateMatrixWorld(true);
+      for (let i = 0; i < pos.count; i++) {
+        baseModel.boneTransform(i, tmp);
+        baseModel.localToWorld(tmp);
+        worldVerts[i] = tmp.clone();
+      }
+
+      const clipPlane = (poly, axis, value, keepAbove) => {
+        if (poly.length === 0) return poly;
+        const out = [];
+        const N = poly.length;
+        for (let i = 0; i < N; i++) {
+          const a = poly[i];
+          const b = poly[(i+1) % N];
+          const aVal = a.getComponent(axis), bVal = b.getComponent(axis);
+          const aIn = keepAbove ? (aVal >= value) : (aVal <= value);
+          const bIn = keepAbove ? (bVal >= value) : (bVal <= value);
+          if (aIn && bIn) out.push(b.clone());
+          else if (aIn && !bIn) { const t=(value-aVal)/(bVal-aVal); const p=a.clone().lerp(b,t); p.setComponent(axis,value); out.push(p); }
+          else if (!aIn && bIn) { const t=(value-aVal)/(bVal-aVal); const p=a.clone().lerp(b,t); p.setComponent(axis,value); out.push(p,b.clone()); }
         }
+        return out;
+      };
+      const clipTriToBox = (a,b,c,box) => {
+        let poly = [a.clone(),b.clone(),c.clone()];
+        poly = clipPlane(poly,0,box.min.x,true);  if (!poly.length) return poly;
+        poly = clipPlane(poly,0,box.max.x,false); if (!poly.length) return poly;
+        poly = clipPlane(poly,1,box.min.y,true);  if (!poly.length) return poly;
+        poly = clipPlane(poly,1,box.max.y,false); if (!poly.length) return poly;
+        poly = clipPlane(poly,2,box.min.z,true);  if (!poly.length) return poly;
+        poly = clipPlane(poly,2,box.max.z,false); return poly;
+      };
 
-        function toggleSelectionMode() {
-            isSelectionMode = !isSelectionMode;
-            selectBtn.classList.toggle('active', isSelectionMode);
-            controls.enabled = !isSelectionMode;
+      const outTris = [];
+      const readIndex = (i) => idx ? idx.getX(i) : i;
+      for (let t = 0; t < triCount; t++) {
+        const ia = readIndex(t*3+0), ib = readIndex(t*3+1), ic = readIndex(t*3+2);
+        const A = worldVerts[ia], B = worldVerts[ib], C = worldVerts[ic];
+        for (const box of committedVolumes) {
+          const poly = clipTriToBox(A,B,C,box);
+          if (poly.length < 3) continue;
+          for (let k = 1; k < poly.length - 1; k++) outTris.push([poly[0].clone(), poly[k].clone(), poly[k+1].clone()]);
         }
+      }
+      if (outTris.length === 0) return 0;
 
-        function onCanvasClick(event) {
-            if (event.target.closest('#info-panel, #debugger-console')) return; // Ignore clicks on UI
-            if (!isSelectionMode || !baseModel) return;
+      const EPS = 0.0025;
+      const positions = new Float32Array(outTris.length * 9);
+      const normals   = new Float32Array(outTris.length * 9);
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), nrm = new THREE.Vector3();
+      for (let i = 0; i < outTris.length; i++) {
+        a.copy(outTris[i][0]); b.copy(outTris[i][1]); c.copy(outTris[i][2]);
+        nrm.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
+        a.addScaledVector(nrm, EPS); b.addScaledVector(nrm, EPS); c.addScaledVector(nrm, EPS);
+        const base = i*9;
+        positions.set([a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z], base);
+        normals.set([nrm.x,nrm.y,nrm.z,nrm.x,nrm.y,nrm.z,nrm.x,nrm.y,nrm.z], base);
+      }
+      const garmentGeo = new THREE.BufferGeometry();
+      garmentGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      garmentGeo.setAttribute('normal',   new THREE.BufferAttribute(normals,   3));
+      garmentGeo.computeBoundingSphere();
 
-            const mouse = new THREE.Vector2(
-                (event.clientX / window.innerWidth) * 2 - 1,
-                -(event.clientY / window.innerHeight) * 2 + 1
-            );
+      const garmentMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:0.05, roughness:0.55, side:THREE.DoubleSide });
+      const garment = new THREE.Mesh(garmentGeo, garmentMat);
+      garment.name = 'Garment';
+      scene.add(garment);
+      return outTris.length;
+    }
+    // -------------------------------------------------------------------------
 
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-
-            let intersectFound = null;
-            baseModel.traverse(child => {
-                if (child.isMesh && !intersectFound) {
-                    const intersects = raycaster.intersectObject(child);
-                    if (intersects.length > 0) {
-                        intersectFound = intersects[0];
-                    }
-                }
-            });
-
-            if (intersectFound) {
-                const point = intersectFound.point;
-                selectionPoints.push(point);
-                const markerGeo = new THREE.SphereGeometry(0.015, 16, 16);
-                const markerMat = new THREE.MeshBasicMaterial({ color: 0x00aaff });
-                const marker = new THREE.Mesh(markerGeo, markerMat);
-                marker.position.copy(point);
-                selectionMarkers.add(marker);
-            }
-        }
-
-        function createClothing() {
-            if (selectionPoints.length < 3) {
-                console.warn("Please select at least 3 points to define an area.");
-                return;
-            }
-            if (!baseModel) {
-                console.warn("Please load a model first.");
-                return;
-            }
-            
-            clearClothing();
-
-            let sourceMesh;
-            baseModel.traverse(child => { if (child.isMesh && !sourceMesh) { sourceMesh = child; } });
-
-            if (!sourceMesh || !sourceMesh.geometry.attributes.position) {
-                console.error("Could not find a valid mesh in the model.");
-                return;
-            }
-
-            const sourcePositions = sourceMesh.geometry.attributes.position;
-            const sourceNormals = sourceMesh.geometry.attributes.normal;
-            const sourceIndex = sourceMesh.geometry.index;
-
-            const selectionRadius = 0.3;
-            const selectedVertexIndices = new Set();
-
-            for (let i = 0; i < sourcePositions.count; i++) {
-                const vertex = new THREE.Vector3().fromBufferAttribute(sourcePositions, i);
-                sourceMesh.localToWorld(vertex);
-                for (const point of selectionPoints) {
-                    if (vertex.distanceTo(point) < selectionRadius) {
-                        selectedVertexIndices.add(i);
-                        break;
-                    }
-                }
-            }
-
-            const oldToNewIndexMap = new Map();
-            const newVertices = [];
-            const newNormals = [];
-
-            selectedVertexIndices.forEach(index => {
-                oldToNewIndexMap.set(index, newVertices.length / 3);
-                newVertices.push(sourcePositions.getX(index), sourcePositions.getY(index), sourcePositions.getZ(index));
-                newNormals.push(sourceNormals.getX(index), sourceNormals.getY(index), sourceNormals.getZ(index));
-            });
-
-            const newIndices = [];
-            for (let i = 0; i < sourceIndex.count; i += 3) {
-                const a = sourceIndex.getX(i);
-                const b = sourceIndex.getY(i);
-                const c = sourceIndex.getZ(i);
-                if (selectedVertexIndices.has(a) && selectedVertexIndices.has(b) && selectedVertexIndices.has(c)) {
-                    newIndices.push(oldToNewIndexMap.get(a), oldToNewIndexMap.get(b), oldToNewIndexMap.get(c));
-                }
-            }
-            
-            if (newIndices.length === 0) {
-              console.warn("No faces were selected. Try placing points closer together.");
-              return;
-            }
-
-            const clothingGeometry = new THREE.BufferGeometry();
-            clothingGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newVertices, 3));
-            clothingGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(newNormals, 3));
-            clothingGeometry.setIndex(newIndices);
-
-            const clothingMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                side: THREE.DoubleSide,
-                roughness: 0.6
-            });
-            
-            clothingMesh = new THREE.Mesh(clothingGeometry, clothingMaterial);
-            scene.add(clothingMesh);
-            
-            sliderBox.style.display = 'flex';
-            loosenessSlider.value = 0;
-            loosenessValue.textContent = '0.0';
-            toggleSelectionMode();
-        }
-        
-        function clearClothing() {
-            if (clothingMesh) {
-                scene.remove(clothingMesh);
-                clothingMesh.geometry.dispose();
-                clothingMesh.material.dispose();
-                clothingMesh = null;
-            }
-            sliderBox.style.display = 'none';
-        }
-
-        function clearSelections() {
-            selectionPoints.length = 0;
-            selectionMarkers.clear();
-            clearClothing();
-            if (isSelectionMode) {
-              toggleSelectionMode();
-            }
-            console.log("Selections cleared.");
-        }
-
-        function adjustLooseness() {
-            if (!clothingMesh) return;
-            const loosenessFactor = parseFloat(loosenessSlider.value);
-            loosenessValue.textContent = loosenessFactor.toFixed(3);
-            const originalPositions = clothingMesh.geometry.attributes.position.clone();
-            const normals = clothingMesh.geometry.attributes.normal;
-            const newPositions = clothingMesh.geometry.attributes.position;
-            for (let i = 0; i < originalPositions.count; i++) {
-                const pos = new THREE.Vector3().fromBufferAttribute(originalPositions, i);
-                const norm = new THREE.Vector3().fromBufferAttribute(normals, i);
-                pos.add(norm.multiplyScalar(loosenessFactor));
-                newPositions.setXYZ(i, pos.x, pos.y, pos.z);
-            }
-            newPositions.needsUpdate = true;
-        }
-
-        init();
-    </script>
+    (function bootstrap(){ initThree(); setupUI(); window.addEventListener('resize', resize); animate(); })();
+  </script>
 </body>
 </html>
