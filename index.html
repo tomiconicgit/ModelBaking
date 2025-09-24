@@ -87,9 +87,10 @@
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
     let renderer, scene, camera, controls, container;
-    let gltfRoot = null;         // NEW: keep whole glTF tree (bones stay linked)
-    let baseModel = null;        // the SkinnedMesh we paint/generate from
+    let gltfRoot = null;
+    let baseModel = null;       // SkinnedMesh we operate on
     let selectionBox = null;
+
     const selectionVolumes = [];   // queued blue boxes
     const committedVolumes = [];   // applied boxes (shader + mesh gen)
     let visualVolumesGroup = null;
@@ -127,16 +128,16 @@
         shader.uniforms.uBoxMax     = maskUniforms.uBoxMax;
         shader.uniforms.uPaintColor = { value: maskUniforms.uPaintColor.value };
 
-        // **FIX**: Correctly calculate world position for both static and skinned meshes.
-        // We inject a 'varying' and calculate its value *after* skinning transforms have been applied.
-        shader.vertexShader = 'varying vec3 vWorldPos;\n' + shader.vertexShader;
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <worldpos_vertex>',
-          `
-          #include <worldpos_vertex>
-          vWorldPos = worldPosition.xyz;
-          `
-        );
+        // Get world position *after skinning*
+        shader.vertexShader =
+          'varying vec3 vWorldPos;\n' +
+          shader.vertexShader.replace(
+            '#include <worldpos_vertex>',
+            `
+            #include <worldpos_vertex>
+            vWorldPos = worldPosition.xyz;
+            `
+          );
 
         const header = `
           varying vec3 vWorldPos;
@@ -188,7 +189,6 @@
     function initThree() {
       scene = new THREE.Scene();
 
-      // gradient bg
       const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
       const ctx = canvas.getContext('2d');
       const grad = ctx.createLinearGradient(0,0,0,2);
@@ -294,13 +294,14 @@
           gltfRoot = gltf.scene;
           scene.add(gltfRoot);
 
+          // pick first SkinnedMesh
           baseModel = null;
           gltfRoot.traverse(obj => { if (obj.isSkinnedMesh && !baseModel) baseModel = obj; });
-
           if (!baseModel) { statusEl.textContent = 'Error: No rigged mesh found in the GLB file.'; return; }
 
           const originalMaterial = baseModel.material;
           const newMaterial = originalMaterial.clone();
+          newMaterial.skinning = true;          // IMPORTANT
           attachMaskShader(newMaterial);
           baseModel.material = newMaterial;
           baseModel.frustumCulled = false;
@@ -319,11 +320,11 @@
     function resetScene() {
       if (gltfRoot) { scene.remove(gltfRoot); gltfRoot = null; }
       baseModel = null;
+      selectionBox = null;
       selectionVolumes.length = 0;
       committedVolumes.length = 0;
       visualVolumesGroup?.clear();
       updateMaskUniformsFromCommitted();
-      // Remove any previously generated garments
       const oldGarment = scene.getObjectByName('Garment');
       if (oldGarment) scene.remove(oldGarment);
     }
@@ -337,139 +338,84 @@
 
     function animate() { requestAnimationFrame(animate); controls?.update(); renderer?.render(scene,camera); }
 
-    // --------- GARMENT GENERATION (robust + skinned-safe) ----------
+    // --------- GARMENT GENERATION (uses built-in boneTransform) ----------
     function generateGarmentFromMask() {
       if (!baseModel) throw new Error('No base model');
-
       (gltfRoot || scene).updateMatrixWorld(true);
+      if (baseModel.skeleton) baseModel.skeleton.update();
 
       const geom = baseModel.geometry;
-      const posAttr = geom.attributes.position;
+      const pos = geom.attributes.position;
       const idx = geom.index;
-      const triCount = idx ? idx.count / 3 : posAttr.count / 3;
+      const triCount = idx ? idx.count / 3 : pos.count / 3;
 
-      // **FIX**: Correctly calculate world-space vertices for both static and skinned meshes.
-      // The old code used a non-existent `boneTransform` function. This performs the
-      // skinning transformation manually on the CPU.
-      const worldVerts = new Array(posAttr.count);
-      const isSkinned = baseModel.isSkinnedMesh && geom.attributes.skinIndex && geom.attributes.skinWeight;
-      const tempVec = new THREE.Vector3();
-
-      if (isSkinned) {
-        baseModel.skeleton.update();
-        const skinIndex = geom.attributes.skinIndex;
-        const skinWeight = geom.attributes.skinWeight;
-        const boneMatrices = baseModel.skeleton.boneMatrices;
-
-        const skinned = new THREE.Vector4();
-        const tempVec4 = new THREE.Vector4();
-        const boneTransform = new THREE.Matrix4();
-
-        for (let i = 0; i < posAttr.count; i++) {
-            skinned.set(0, 0, 0, 0);
-            tempVec.fromBufferAttribute(posAttr, i);
-            tempVec4.set(tempVec.x, tempVec.y, tempVec.z, 1.0);
-
-            const si = new THREE.Vector4().fromBufferAttribute(skinIndex, i);
-            const sw = new THREE.Vector4().fromBufferAttribute(skinWeight, i);
-            
-            boneTransform.fromArray(boneMatrices, si.x * 16);
-            skinned.addScaledVector(tempVec4.clone().applyMatrix4(boneTransform), sw.x);
-            
-            boneTransform.fromArray(boneMatrices, si.y * 16);
-            skinned.addScaledVector(tempVec4.clone().applyMatrix4(boneTransform), sw.y);
-
-            boneTransform.fromArray(boneMatrices, si.z * 16);
-            skinned.addScaledVector(tempVec4.clone().applyMatrix4(boneTransform), sw.z);
-
-            boneTransform.fromArray(boneMatrices, si.w * 16);
-            skinned.addScaledVector(tempVec4.clone().applyMatrix4(boneTransform), sw.w);
-            
-            worldVerts[i] = new THREE.Vector3(skinned.x, skinned.y, skinned.z).applyMatrix4(baseModel.matrixWorld);
+      // world-space verts with skinning
+      const worldVerts = new Array(pos.count);
+      const tmp = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        if (typeof baseModel.boneTransform === 'function') {
+          baseModel.boneTransform(i, tmp); // skinned local
+        } else {
+          tmp.fromBufferAttribute(pos, i); // fallback
         }
-      } else {
-        for (let i = 0; i < posAttr.count; i++) {
-            worldVerts[i] = tempVec.fromBufferAttribute(posAttr, i).clone().applyMatrix4(baseModel.matrixWorld);
-        }
+        baseModel.localToWorld(tmp);       // to world
+        worldVerts[i] = tmp.clone();
       }
 
-      // Sutherland–Hodgman clipping against AABB (world)
+      // Clip triangles to each committed AABB (Sutherland–Hodgman on slabs)
       const clipPlane = (poly, axis, value, keepAbove) => {
-        if (poly.length === 0) return poly;
+        if (!poly.length) return poly;
         const out = [];
-        const N = poly.length;
-        for (let i = 0; i < N; i++) {
-          const a = poly[i];
-          const b = poly[(i+1) % N];
-          const aVal = a.getComponent(axis), bVal = b.getComponent(axis);
-          const aIn = keepAbove ? (aVal >= value) : (aVal <= value);
-          const bIn = keepAbove ? (bVal >= value) : (bVal <= value);
-          if (aIn && bIn) {
-            out.push(b.clone());
-          } else if (aIn && !bIn) {
-            const denom = (bVal - aVal);
-            if (Math.abs(denom) < 1e-8) continue; // parallel edge
-            const t = (value - aVal) / denom;
-            const p = a.clone().lerp(b, t); p.setComponent(axis, value);
-            out.push(p);
-          } else if (!aIn && bIn) {
-            const denom = (bVal - aVal);
-            if (Math.abs(denom) < 1e-8) { out.push(b.clone()); continue; }
-            const t = (value - aVal) / denom;
-            const p = a.clone().lerp(b, t); p.setComponent(axis, value);
-            out.push(p, b.clone());
-          }
+        for (let i = 0, N = poly.length; i < N; i++) {
+          const a = poly[i], b = poly[(i+1)%N];
+          const av = a.getComponent(axis), bv = b.getComponent(axis);
+          const ain = keepAbove ? av >= value : av <= value;
+          const bin = keepAbove ? bv >= value : bv <= value;
+          if (ain && bin) out.push(b.clone());
+          else if (ain && !bin) { const t=(value-av)/(bv-av); out.push(a.clone().lerp(b,t).setComponent(axis,value)); }
+          else if (!ain && bin) { const t=(value-av)/(bv-av); out.push(a.clone().lerp(b,t).setComponent(axis,value), b.clone()); }
         }
         return out;
       };
-      const clipTriToBox = (a,b,c,box) => {
-        let poly = [a.clone(), b.clone(), c.clone()];
-        poly = clipPlane(poly, 0, box.min.x, true);  if (!poly.length) return poly;
-        poly = clipPlane(poly, 0, box.max.x, false); if (!poly.length) return poly;
-        poly = clipPlane(poly, 1, box.min.y, true);  if (!poly.length) return poly;
-        poly = clipPlane(poly, 1, box.max.y, false); if (!poly.length) return poly;
-        poly = clipPlane(poly, 2, box.min.z, true);  if (!poly.length) return poly;
-        poly = clipPlane(poly, 2, box.max.z, false); return poly;
+      const clipTriToBox = (A,B,C,box) => {
+        let p=[A.clone(),B.clone(),C.clone()];
+        p = clipPlane(p,0,box.min.x,true);  if (!p.length) return p;
+        p = clipPlane(p,0,box.max.x,false); if (!p.length) return p;
+        p = clipPlane(p,1,box.min.y,true);  if (!p.length) return p;
+        p = clipPlane(p,1,box.max.y,false); if (!p.length) return p;
+        p = clipPlane(p,2,box.min.z,true);  if (!p.length) return p;
+        p = clipPlane(p,2,box.max.z,false); return p;
       };
 
       const outTris = [];
       const readIndex = (i) => idx ? idx.getX(i) : i;
-
       for (let t = 0; t < triCount; t++) {
         const ia = readIndex(t*3+0), ib = readIndex(t*3+1), ic = readIndex(t*3+2);
         const A = worldVerts[ia], B = worldVerts[ib], C = worldVerts[ic];
-
         for (const box of committedVolumes) {
           const poly = clipTriToBox(A,B,C,box);
           if (poly.length < 3) continue;
-          for (let k = 1; k < poly.length - 1; k++) {
-            outTris.push([poly[0].clone(), poly[k].clone(), poly[k+1].clone()]);
-          }
+          for (let k = 1; k < poly.length - 1; k++) outTris.push([poly[0].clone(), poly[k].clone(), poly[k+1].clone()]);
         }
       }
 
-      // build mesh
-      if (outTris.length === 0) return 0;
+      if (!outTris.length) return 0;
 
-      const EPS = 0.005; // slightly thicker for visibility on iPhone
+      const EPS = 0.005;
       const positions = new Float32Array(outTris.length * 9);
       const normals   = new Float32Array(outTris.length * 9);
-      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), nrm = new THREE.Vector3();
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
 
       for (let i = 0; i < outTris.length; i++) {
         a.copy(outTris[i][0]); b.copy(outTris[i][1]); c.copy(outTris[i][2]);
-        nrm.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
-        a.addScaledVector(nrm, EPS);
-        b.addScaledVector(nrm, EPS);
-        c.addScaledVector(nrm, EPS);
-        const base = i*9;
-        positions.set([a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z], base);
-        normals.set([nrm.x,nrm.y,nrm.z, nrm.x,nrm.y,nrm.z, nrm.x,nrm.y,nrm.z], base);
+        n.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
+        a.addScaledVector(n, EPS); b.addScaledVector(n, EPS); c.addScaledVector(n, EPS);
+        positions.set([a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z], i*9);
+        normals.set([n.x,n.y,n.z,n.x,n.y,n.z,n.x,n.y,n.z], i*9);
       }
 
-      // Remove old garment before adding a new one
-      const oldGarment = (gltfRoot || scene).getObjectByName('Garment');
-      if (oldGarment) oldGarment.parent.remove(oldGarment);
+      const old = (gltfRoot || scene).getObjectByName('Garment');
+      if (old) old.parent.remove(old);
 
       const garmentGeo = new THREE.BufferGeometry();
       garmentGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -477,21 +423,23 @@
       garmentGeo.computeBoundingSphere();
 
       const garmentMat = new THREE.MeshStandardMaterial({
-        color: 0x22ff88,
-        metalness: 0.05, roughness: 0.55, side: THREE.DoubleSide
+        color: 0x22ff88, metalness: 0.05, roughness: 0.55, side: THREE.DoubleSide
       });
-
       const garment = new THREE.Mesh(garmentGeo, garmentMat);
       garment.name = 'Garment';
       (gltfRoot || scene).add(garment);
       garment.renderOrder = 1;
 
-      console.log(`Garment tris: ${outTris.length}`);
       return outTris.length;
     }
     // -------------------------------------------------------------------------
 
-    (function bootstrap(){ initThree(); setupUI(); window.addEventListener('resize', resize); animate(); })();
+    (function bootstrap(){
+      initThree();
+      setupUI();
+      window.addEventListener('resize', resize);
+      animate();
+    })();
   </script>
 </body>
 </html>
