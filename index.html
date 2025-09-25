@@ -123,6 +123,8 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 let renderer, scene, camera, controls;
 let loadedGltf = null;
 let activeMesh = null;
+let mixer = null; // Animation mixer
+const clock = new THREE.Clock(); // Clock for animation updates
 const textureLoader = new THREE.TextureLoader();
 const gltfLoader = new GLTFLoader();
 const gltfExporter = new GLTFExporter();
@@ -183,7 +185,16 @@ function init() {
   animate();
 }
 
-function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); }
+function animate(){
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (mixer) {
+    mixer.update(delta);
+  }
+  controls.update();
+  renderer.render(scene,camera);
+}
+
 function onWindowResize(){ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); }
 
 function setupEventListeners() {
@@ -205,6 +216,13 @@ function handleModelLoad(e){
       resetScene();
       loadedGltf = gltf;
       scene.add(gltf.scene);
+
+      // Set up animation player if animations exist
+      if (gltf.animations && gltf.animations.length) {
+        mixer = new THREE.AnimationMixer(gltf.scene);
+        const action = mixer.clipAction(gltf.animations[0]);
+        action.play();
+      }
 
       // Center the model
       const box = new THREE.Box3().setFromObject(gltf.scene);
@@ -244,6 +262,7 @@ function resetScene(){
     });
   }
   loadedGltf=null;
+  mixer = null; // Clear the mixer
   meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
   exportBtn.disabled = true;
   tposeBtn.disabled = true;
@@ -320,9 +339,6 @@ function showTexturePanel(mesh){
   activeMesh = mesh;
   texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
 
-  // This previously problematic block that replaced materials has been REMOVED.
-  // The app will now edit textures only if the material supports it (e.g., MeshStandardMaterial).
-
   if (!mesh.material || !mesh.material.isMeshStandardMaterial) {
     textureOptionsContainer.innerHTML = `<div id="status">This mesh does not use an editable Standard Material.</div>`;
   } else {
@@ -367,16 +383,23 @@ function showMainPanel(){ mainPanel.classList.remove('hidden'); texturePanel.cla
  */
 function setTPose() {
   if (!loadedGltf) return;
+
+  // **CRUCIAL STEP**: Stop the animation mixer from controlling the bones.
+  if (mixer) {
+    mixer.stopAllAction();
+  }
+
   let skeletonsFound = 0;
   loadedGltf.scene.traverse(obj => {
     if (obj.isSkinnedMesh) {
+      // After animations are stopped, reset the skeleton to its default bind pose.
       obj.skeleton.pose();
       skeletonsFound++;
     }
   });
 
   if (skeletonsFound > 0) {
-    alert(`Reset ${skeletonsFound} skeleton(s) to T-pose.`);
+    alert(`Model has been set to T-pose.`);
     console.log(`Reset ${skeletonsFound} skeleton(s) to T-pose.`);
   } else {
     alert('No rigged skeleton was found in this model.');
@@ -388,7 +411,7 @@ async function exportGLB(){
   if(!loadedGltf) return;
   exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
   try{
-    const options = { binary:true }; // embedImages is true by default
+    const options = { binary:true };
     const result = await new Promise((res,rej)=>gltfExporter.parse(loadedGltf.scene,res,rej,options));
     const baseName = sanitizeFilename((loadedGltf.scene.name || 'edited_model').trim() || 'edited_model');
     downloadBlob(new Blob([result],{type:'model/gltf-binary'}), `${baseName}.glb`);
