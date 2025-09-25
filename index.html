@@ -382,46 +382,56 @@ function handleModelLoad(e){
   for (const file of files) {
       const reader = new FileReader();
       reader.onload = ev => {
-        gltfLoader.parse(ev.target.result, '', (gltf) => {
-            const id = `model-${modelIdCounter++}`;
-            const stats = calculateModelStats(gltf.scene);
-            const skeletonPresent = hasSkeleton(gltf.scene);
+        gltfLoader.parse(
+            ev.target.result,
+            '',
+            // Success callback
+            (gltf) => {
+                const id = `model-${modelIdCounter++}`;
+                const stats = calculateModelStats(gltf.scene);
+                const skeletonPresent = hasSkeleton(gltf.scene);
 
-            let skeletonHelper = null;
-            if (skeletonPresent) {
-                skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
-                skeletonHelper.visible = false;
-                scene.add(skeletonHelper);
-            }
-
-            models[id] = {
-                gltf,
-                mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
-                animation: null, // For externally loaded animations
-                skeletonHelper: skeletonHelper,
-                fileInfo: {
-                    name: file.name,
-                    size: file.size,
-                    polygons: stats.polygons,
-                    vertices: stats.vertices,
+                let skeletonHelper = null;
+                if (skeletonPresent) {
+                    skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
+                    skeletonHelper.visible = false;
+                    scene.add(skeletonHelper);
                 }
-            };
 
-            scene.add(gltf.scene);
+                models[id] = {
+                    gltf,
+                    mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
+                    animation: null, // For externally loaded animations
+                    skeletonHelper: skeletonHelper,
+                    fileInfo: {
+                        name: file.name,
+                        size: file.size,
+                        polygons: stats.polygons,
+                        vertices: stats.vertices,
+                    }
+                };
 
-            if (!activeModelId) {
-                setActiveModel(id);
-                // Frame the first loaded model
-                const box = new THREE.Box3().setFromObject(gltf.scene);
-                const size = box.getSize(new THREE.Vector3()).length();
-                const center = box.getCenter(new THREE.Vector3());
-                controls.reset();
-                controls.target.copy(center);
-                camera.position.copy(center).add(new THREE.Vector3(0, size * 0.5, size * 1.5));
-                camera.lookAt(center);
+                scene.add(gltf.scene);
+
+                if (!activeModelId) {
+                    setActiveModel(id);
+                    // Frame the first loaded model
+                    const box = new THREE.Box3().setFromObject(gltf.scene);
+                    const size = box.getSize(new THREE.Vector3()).length();
+                    const center = box.getCenter(new THREE.Vector3());
+                    controls.reset();
+                    controls.target.copy(center);
+                    camera.position.copy(center).add(new THREE.Vector3(0, size * 0.5, size * 1.5));
+                    camera.lookAt(center);
+                }
+                updateAllPanels();
+            },
+            // Error callback
+            (error) => {
+                console.error('An error happened during GLTF parsing:', error);
+                alert(`Failed to load model "${file.name}". The file might be corrupt or in an unsupported format. Check the console for more details.`);
             }
-            updateAllPanels();
-        });
+        );
       };
       reader.readAsArrayBuffer(file);
   }
