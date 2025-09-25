@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>GLB Mesh Editor</title>
 
-  <!-- Minimal PWA bits -->
   <link rel="manifest" href='data:application/manifest+json,{
     "name":"GLB Mesh Editor",
     "short_name":"GLB Editor",
@@ -43,7 +42,7 @@
       background:var(--panel-bg);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
       border-top:1px solid var(--border-color);
       padding:1rem; padding-bottom:calc(1rem + env(safe-area-inset-bottom));
-      display:flex;flex-direction:column;max-height:60vh;transition:transform .3s ease-in-out;touch-action:pan-y
+      display:flex;flex-direction:column;max-height:40vh;transition:transform .3s ease-in-out;touch-action:pan-y
     }
     .panel.hidden{transform:translateY(100%)}
     .panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-shrink:0;gap:.5rem;flex-wrap:wrap}
@@ -201,20 +200,6 @@ function setupEventListeners() {
   textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
 }
 
-// Ensure sane, opaque, double-sided materials (helps odd assets)
-function fixModelMaterials(object){
-  object.traverse((child)=>{
-    if (child.isMesh){
-      const mats = Array.isArray(child.material)?child.material:[child.material];
-      mats.forEach(m=>{
-        if(!m) return;
-        if(!m.name) m.name = `Material_${m.uuid.slice(0,8)}`;
-        m.transparent = false; m.depthWrite = true; m.side = THREE.DoubleSide; m.needsUpdate = true;
-      });
-    }
-  });
-}
-
 function handleModelLoad(e){
   const file = e.target.files[0]; if(!file) return;
   const reader = new FileReader();
@@ -222,9 +207,10 @@ function handleModelLoad(e){
     gltfLoader.parse(ev.target.result,'', (gltf)=>{
       resetScene();
       loadedGltf = gltf;
-      fixModelMaterials(gltf.scene);
+      // The material fixing function was removed from here
       scene.add(gltf.scene);
 
+      // This block correctly centers the model
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const size = box.getSize(new THREE.Vector3()).length();
       const center = box.getCenter(new THREE.Vector3());
@@ -232,9 +218,9 @@ function handleModelLoad(e){
       controls.reset();
       controls.target.copy(center);
       camera.position.copy(center);
-      camera.position.x += size/1.5;
-      camera.position.y += size/2.0;
-      camera.position.z += size/1.5;
+      camera.position.x += size / 1.5;
+      camera.position.y += size / 2.0;
+      camera.position.z += size / 1.5;
       camera.lookAt(center);
       camera.updateProjectionMatrix();
 
