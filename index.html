@@ -1,214 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-    <title>GLB Mesh Editor</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>GLB Mesh Editor</title>
 
-    <link rel="manifest" href='data:application/manifest+json,{
-        "name":"GLB Mesh Editor",
-        "short_name":"GLB Editor",
-        "start_url":".",
-        "display":"standalone",
-        "background_color":"#101318",
-        "theme_color":"#101318",
-        "icons":[
-            {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
-        ]
-    }' />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="GLB Editor" />
-    <meta name="theme-color" content="#101318" />
+  <link rel="manifest" href='data:application/manifest+json,{
+    "name":"GLB Mesh Editor",
+    "short_name":"GLB Editor",
+    "start_url":".",
+    "display":"standalone",
+    "background_color":"#101318",
+    "theme_color":"#101318",
+    "icons":[
+      {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
+    ]
+  }' />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GLB Editor" />
+  <meta name="theme-color" content="#101318" />
 
-    <style>
-        :root {
-            --bg: #101318;
-            --panel-bg: rgba(22, 26, 33, 0.8);
-            --fg: #e6eef6;
-            --fg-light: #8899aa;
-            --primary: #0099ff;
-            --primary-light: #33aaff;
-            --accent: #ff4757;
-            --border-color: #2a2f36;
-        }
-
-        /* --- Base & Layout --- */
-        html, body {
-            height: 100%; margin: 0; overflow: hidden;
-        }
-        body {
-            background: var(--bg); color: var(--fg);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            -webkit-font-smoothing: antialiased;
-            touch-action: none;
-        }
-        #app {
-            position: fixed; inset: 0;
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-        }
-        #viewer3d {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
-        }
-        #viewer3d canvas { display: block; width: 100%; height: 100%; }
-
-        /* --- Panels --- */
-        .panel {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            z-index: 10;
-            background: var(--panel-bg);
-            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            border-top: 1px solid var(--border-color);
-            padding: 1rem;
-            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-            display: flex; flex-direction: column;
-            max-height: 60vh;
-            transition: transform 0.3s ease-in-out;
-            touch-action: pan-y;
-        }
-        .panel.hidden { transform: translateY(100%); }
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            flex-shrink: 0;
-        }
-        .panel-header h3 { margin: 0; font-size: 1.1rem; }
-        #mesh-list-container, #texture-options {
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        #status {
-            text-align: center;
-            color: var(--fg-light);
-            padding: 2rem 0;
-        }
-
-        /* --- Buttons & Controls --- */
-        .button {
-            background: var(--primary); color: #fff; border: none; border-radius: 8px;
-            padding: 10px 16px; font-size: 0.9rem; font-weight: 500; cursor: pointer;
-            transition: background-color .2s;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .button:hover { background: var(--primary-light); }
-        .button:disabled { background: #333; color: #777; cursor: not-allowed; }
-        .button.accent { background: var(--accent); }
-        .button.accent:hover { background: #ff6b81; }
-        .button.ghost { background: transparent; border: 1px solid var(--border-color); color: var(--fg); }
-        .button.ghost:hover { background: var(--border-color); }
-        .icon-btn {
-            background: none; border: none; color: var(--fg-light); cursor: pointer;
-            padding: 8px; display: flex; align-items: center; justify-content: center;
-        }
-        .icon-btn svg { width: 18px; height: 18px; }
-        .icon-btn:hover { color: var(--primary); }
-
-        /* --- Mesh List Item --- */
-        .mesh-item {
-            display: flex;
-            align-items: center;
-            padding: 10px 4px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .mesh-item:last-child { border-bottom: none; }
-        .mesh-name {
-            flex-grow: 1;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            cursor: pointer;
-        }
-        .mesh-name-input {
-            flex-grow: 1; background: #222; border: 1px solid var(--primary);
-            color: var(--fg); border-radius: 4px; padding: 4px 6px;
-            font-size: 1rem;
-        }
-        .mesh-controls {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            flex-shrink: 0;
-        }
-
-        /* --- Texture Editor --- */
-        .texture-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 4px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .texture-row label { font-size: 0.95rem; }
-        .texture-row:last-child { border-bottom: none; }
-
-        /* --- Toggle Switch --- */
-        .toggle-switch {
-            position: relative; display: inline-block; width: 44px; height: 24px;
-        }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333; transition: .4s; border-radius: 24px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 18px; width: 18px;
-            left: 3px; bottom: 3px; background-color: white;
-            transition: .4s; border-radius: 50%;
-        }
-        input:checked + .slider { background-color: var(--primary); }
-        input:checked + .slider:before { transform: translateX(20px); }
-
-    </style>
-
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
-        }
+  <style>
+    :root {
+      --bg: #101318;
+      --panel-bg: rgba(22, 26, 33, 0.8);
+      --fg: #e6eef6;
+      --fg-light: #8899aa;
+      --primary: #0099ff;
+      --primary-light: #33aaff;
+      --accent: #ff4757;
+      --border-color: #2a2f36;
     }
-    </script>
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--bg); color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      touch-action: none;
+    }
+    #app { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #viewer3d { position: fixed; top:0; left:0; width:100%; height:100%; z-index:1; }
+    #viewer3d canvas { display:block; width:100%; height:100%; }
+    .panel {
+      position: fixed; bottom:0; left:0; right:0; z-index:10;
+      background: var(--panel-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border-color);
+      padding: 1rem; padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+      display:flex; flex-direction:column; max-height:60vh; transition: transform .3s ease-in-out; touch-action: pan-y;
+    }
+    .panel.hidden { transform: translateY(100%); }
+    .panel-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-shrink:0; gap:.5rem; flex-wrap:wrap; }
+    .panel-header h3 { margin:0; font-size:1.1rem; }
+    #mesh-list-container, #texture-options { overflow-y:auto; flex-grow:1; }
+    #status { text-align:center; color:var(--fg-light); padding:2rem 0; }
+    .button {
+      background: var(--primary); color:#fff; border:none; border-radius:8px;
+      padding:10px 16px; font-size:.9rem; font-weight:500; cursor:pointer; transition:background-color .2s; -webkit-tap-highlight-color:transparent;
+    }
+    .button:hover { background: var(--primary-light); }
+    .button:disabled { background:#333; color:#777; cursor:not-allowed; }
+    .button.accent { background: var(--accent); }
+    .button.accent:hover { background:#ff6b81; }
+    .button.ghost { background:transparent; border:1px solid var(--border-color); color:var(--fg); }
+    .button.ghost:hover { background:var(--border-color); }
+    .icon-btn { background:none; border:none; color:var(--fg-light); cursor:pointer; padding:8px; display:flex; align-items:center; justify-content:center; }
+    .icon-btn svg { width:18px; height:18px; }
+    .icon-btn:hover { color: var(--primary); }
+    .mesh-item { display:flex; align-items:center; padding:10px 4px; border-bottom:1px solid var(--border-color); }
+    .mesh-item:last-child { border-bottom:none; }
+    .mesh-name { flex-grow:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+    .mesh-name-input { flex-grow:1; background:#222; border:1px solid var(--primary); color:var(--fg); border-radius:4px; padding:4px 6px; font-size:1rem; }
+    .mesh-controls { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+    .texture-row { display:flex; justify-content:space-between; align-items:center; padding:12px 4px; border-bottom:1px solid var(--border-color); }
+    .texture-row:last-child { border-bottom:none; }
+    .toggle-switch { position:relative; display:inline-block; width:44px; height:24px; }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#333; transition:.4s; border-radius:24px; }
+    .slider:before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-    <div id="app" role="application">
-        <div id="viewer3d"></div>
+  <div id="app" role="application">
+    <div id="viewer3d"></div>
 
-        <div id="main-panel" class="panel">
-            <div class="panel-header">
-                <button id="load-model-btn" class="button">Load Model</button>
-                <button id="export-glb-btn" class="button" disabled>Export GLB</button>
-            </div>
-            <div id="mesh-list-container">
-                <div id="status">Load a GLB model to begin.</div>
-            </div>
+    <div id="main-panel" class="panel">
+      <div class="panel-header">
+        <button id="load-model-btn" class="button">Load Model</button>
+        <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+          <button id="export-glb-btn" class="button" disabled>Export GLB</button>
+          <button id="export-objzip-btn" class="button ghost" disabled>Export OBJ (.zip)</button>
         </div>
-
-        <div id="texture-panel" class="panel hidden">
-            <div class="panel-header">
-                <button id="back-to-list-btn" class="button ghost">&larr; Back</button>
-                <h3 id="texture-panel-header">Edit Textures</h3>
-            </div>
-            <div id="texture-options"></div>
-        </div>
-
-        <input type="file" id="model-input" accept=".glb" style="display:none" />
-        <input type="file" id="texture-input" accept="image/png, image/jpeg" style="display:none" />
+      </div>
+      <div id="mesh-list-container">
+        <div id="status">Load a GLB model to begin.</div>
+      </div>
     </div>
+
+    <div id="texture-panel" class="panel hidden">
+      <div class="panel-header">
+        <button id="back-to-list-btn" class="button ghost">&larr; Back</button>
+        <h3 id="texture-panel-header">Edit Textures</h3>
+      </div>
+      <div id="texture-options"></div>
+    </div>
+
+    <input type="file" id="model-input" accept=".glb" style="display:none" />
+    <input type="file" id="texture-input" accept="image/png, image/jpeg" style="display:none" />
+  </div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 
 // --- Global State ---
 let renderer, scene, camera, controls;
 let loadedGltf = null;
-let activeMesh = null; // The mesh currently being edited in the texture panel
+let activeMesh = null;
 const textureLoader = new THREE.TextureLoader();
 const gltfLoader = new GLTFLoader();
 const gltfExporter = new GLTFExporter();
+const objExporter = new OBJExporter();
 
 // --- DOM Elements ---
 const viewerContainer = document.getElementById('viewer3d');
@@ -216,6 +143,7 @@ const mainPanel = document.getElementById('main-panel');
 const texturePanel = document.getElementById('texture-panel');
 const loadBtn = document.getElementById('load-model-btn');
 const exportBtn = document.getElementById('export-glb-btn');
+const exportObjZipBtn = document.getElementById('export-objzip-btn');
 const backBtn = document.getElementById('back-to-list-btn');
 const modelInput = document.getElementById('model-input');
 const textureInput = document.getElementById('texture-input');
@@ -229,375 +157,453 @@ const iconTexture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
 const iconDelete = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"/></svg>`;
 const iconRename = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.2501 2.25L15.3712 4.37113L8.932 10.8103L6.81087 8.68918L13.2501 2.25ZM20.7071 5.29289C21.0976 5.68342 21.0976 6.31658 20.7071 6.70711L19.2929 8.12132L15.8787 4.70711L17.2929 3.29289C17.6834 2.90237 18.3166 2.90237 18.7071 3.29289L20.7071 5.29289ZM14.4645 6.12132L17.8787 9.53553L9.63604 17.7782C9.40879 18.0054 9.10398 18.1213 8.78923 18.1213H5C4.44772 18.1213 4 17.6736 4 17.1213V14.3321C4 14.0174 4.11593 13.7125 4.34315 13.4853L14.4645 6.12132ZM2 21.1213H22V22.1213H2V21.1213Z"/></svg>`;
 
-
 // --- Main Functions ---
 function init() {
-    // Scene & Camera
-    scene = new THREE.Scene();
-    const bgUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23595f66'/%3E%3Cstop offset='100%25' stop-color='%2333373d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='2' height='2'/%3E%3C/svg%3E";
-    const bgTexture = textureLoader.load(bgUrl);
-    bgTexture.magFilter = THREE.NearestFilter;
-    scene.background = bgTexture;
+  scene = new THREE.Scene();
+  const bgUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23595f66'/%3E%3Cstop offset='100%25' stop-color='%2333373d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='2' height='2'/%3E%3C/svg%3E";
+  const bgTexture = textureLoader.load(bgUrl);
+  bgTexture.magFilter = THREE.NearestFilter;
+  scene.background = bgTexture;
 
-    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1, 3);
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 1, 3);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    viewerContainer.appendChild(renderer.domElement);
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  viewerContainer.appendChild(renderer.domElement);
 
-    // Controls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 0.8, 0);
-    controls.enableDamping = true;
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.8, 0);
+  controls.enableDamping = true;
 
-    // Lighting
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2.5));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-    dirLight.position.set(5, 5, 5);
-    scene.add(dirLight);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2.5));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+  dirLight.position.set(5, 5, 5);
+  scene.add(dirLight);
 
-    // Ground Grid
-    scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
+  scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
 
-    // Setup UI listeners and start animation loop
-    setupEventListeners();
-    animate();
+  setupEventListeners();
+  animate();
 }
 
 function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
 }
 
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // --- UI & Event Handling ---
 function setupEventListeners() {
-    window.addEventListener('resize', onWindowResize);
-    loadBtn.addEventListener('click', () => modelInput.click());
-    modelInput.addEventListener('change', handleModelLoad);
-    exportBtn.addEventListener('click', exportGLB);
-    backBtn.addEventListener('click', showMainPanel);
+  window.addEventListener('resize', onWindowResize);
+  loadBtn.addEventListener('click', () => modelInput.click());
+  modelInput.addEventListener('change', handleModelLoad);
+  exportBtn.addEventListener('click', exportGLB);
+  exportObjZipBtn.addEventListener('click', exportOBJZip);
+  backBtn.addEventListener('click', showMainPanel);
 
-    // Use event delegation for dynamically created mesh items
-    meshListContainer.addEventListener('click', handleMeshListInteraction);
-    textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
+  meshListContainer.addEventListener('click', handleMeshListInteraction);
+  textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
 }
 
-/**
- * NEW: Fixes common material issues on loaded models.
- */
+/** Force sane, non-transparent, double-sided materials */
 function fixModelMaterials(object) {
-    object.traverse((child) => {
-        if (child.isMesh) {
-            // Ensure we have an array of materials
-            const materials = Array.isArray(child.material) ? child.material : [child.material];
-            
-            materials.forEach(material => {
-                // Force mesh to be opaque, fixing unwanted transparency
-                material.transparent = false;
-                material.depthWrite = true;
-                
-                // Render both sides of the geometry, fixing "inside-out" faces
-                material.side = THREE.DoubleSide;
-                
-                material.needsUpdate = true;
-            });
-        }
-    });
+  object.traverse((child) => {
+    if (child.isMesh) {
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach(material => {
+        if (!material) return;
+        if (!material.name) material.name = `Material_${material.uuid.slice(0,8)}`;
+        material.transparent = false;
+        material.depthWrite = true;
+        material.side = THREE.DoubleSide;
+        material.needsUpdate = true;
+      });
+    }
+  });
 }
-
 
 function handleModelLoad(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+  const file = event.target.files[0];
+  if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        gltfLoader.parse(e.target.result, '', (gltf) => {
-            resetScene();
-            loadedGltf = gltf;
-            
-            // --- FIX APPLIED HERE ---
-            fixModelMaterials(gltf.scene);
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    gltfLoader.parse(e.target.result, '', (gltf) => {
+      resetScene();
+      loadedGltf = gltf;
 
-            scene.add(gltf.scene);
-            
-            // Auto-fit camera to the new model
-            const box = new THREE.Box3().setFromObject(gltf.scene);
-            const size = box.getSize(new THREE.Vector3()).length();
-            const center = box.getCenter(new THREE.Vector3());
+      fixModelMaterials(gltf.scene);
+      scene.add(gltf.scene);
 
-            controls.reset();
-            controls.target.copy(center);
-            camera.position.copy(center);
-            camera.position.x += size / 1.5;
-            camera.position.y += size / 2.0;
-            camera.position.z += size / 1.5;
-            camera.lookAt(center);
-            camera.updateProjectionMatrix();
+      const box = new THREE.Box3().setFromObject(gltf.scene);
+      const size = box.getSize(new THREE.Vector3()).length();
+      const center = box.getCenter(new THREE.Vector3());
 
-            populateMeshList();
-            exportBtn.disabled = false;
-        }, (error) => {
-            console.error('An error happened during GLTF parsing:', error);
-            statusEl.textContent = 'Error: Could not load model.';
-        });
-    };
-    reader.readAsArrayBuffer(file);
-    modelInput.value = ''; // Reset input to allow reloading the same file
+      controls.reset();
+      controls.target.copy(center);
+      camera.position.copy(center);
+      camera.position.x += size / 1.5;
+      camera.position.y += size / 2.0;
+      camera.position.z += size / 1.5;
+      camera.lookAt(center);
+      camera.updateProjectionMatrix();
+
+      populateMeshList();
+      exportBtn.disabled = false;
+      exportObjZipBtn.disabled = false;
+    }, (error) => {
+      console.error('An error happened during GLTF parsing:', error);
+      statusEl.textContent = 'Error: Could not load model.';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+  modelInput.value = '';
 }
 
 function resetScene() {
-    if (loadedGltf) {
-        scene.remove(loadedGltf.scene);
-        // Proper disposal of resources
-        loadedGltf.scene.traverse(object => {
-            if (object.isMesh) {
-                object.geometry.dispose();
-                if (Array.isArray(object.material)) {
-                    object.material.forEach(material => material.dispose());
-                } else {
-                    object.material.dispose();
-                }
-            }
-        });
-    }
-    loadedGltf = null;
-    meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
-    exportBtn.disabled = true;
+  if (loadedGltf) {
+    scene.remove(loadedGltf.scene);
+    loadedGltf.scene.traverse(object => {
+      if (object.isMesh) {
+        object.geometry?.dispose?.();
+        const mats = Array.isArray(object.material) ? object.material : [object.material];
+        mats.forEach(m => m?.dispose?.());
+      }
+    });
+  }
+  loadedGltf = null;
+  meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
+  exportBtn.disabled = true;
+  exportObjZipBtn.disabled = true;
 }
 
 // --- Mesh List Logic ---
 function populateMeshList() {
-    const meshes = [];
-    loadedGltf.scene.traverse(child => {
-        if (child.isMesh) meshes.push(child);
-    });
-
-    if (meshes.length === 0) {
-        meshListContainer.innerHTML = `<div id="status">No meshes found in this model.</div>`;
-        return;
-    }
-
-    const listHtml = meshes.map(mesh => `
-        <div class="mesh-item" data-uuid="${mesh.uuid}">
-            <span class="mesh-name" title="Click to rename">${mesh.name || 'Unnamed Mesh'}</span>
-            <div class="mesh-controls">
-                <button class="icon-btn" data-action="rename" title="Rename Mesh">${iconRename}</button>
-                <button class="icon-btn" data-action="texture" title="Edit Textures">${iconTexture}</button>
-                <button class="icon-btn" data-action="delete" title="Delete Mesh">${iconDelete}</button>
-                <label class="toggle-switch" title="Toggle Visibility">
-                    <input type="checkbox" data-action="toggle-visibility" ${mesh.visible ? 'checked' : ''}>
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
-    `).join('');
-
-    meshListContainer.innerHTML = listHtml;
+  const meshes = [];
+  loadedGltf.scene.traverse(child => { if (child.isMesh) meshes.push(child); });
+  if (meshes.length === 0) {
+    meshListContainer.innerHTML = `<div id="status">No meshes found in this model.</div>`;
+    return;
+  }
+  const listHtml = meshes.map(mesh => `
+    <div class="mesh-item" data-uuid="${mesh.uuid}">
+      <span class="mesh-name" title="Click to rename">${mesh.name || 'Unnamed Mesh'}</span>
+      <div class="mesh-controls">
+        <button class="icon-btn" data-action="rename" title="Rename Mesh">${iconRename}</button>
+        <button class="icon-btn" data-action="texture" title="Edit Textures">${iconTexture}</button>
+        <button class="icon-btn" data-action="delete" title="Delete Mesh">${iconDelete}</button>
+        <label class="toggle-switch" title="Toggle Visibility">
+          <input type="checkbox" data-action="toggle-visibility" ${mesh.visible ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+  meshListContainer.innerHTML = listHtml;
 }
 
 function handleMeshListInteraction(event) {
-    const target = event.target;
-    const meshItem = target.closest('.mesh-item');
-    if (!meshItem) return;
+  const target = event.target;
+  const meshItem = target.closest('.mesh-item');
+  if (!meshItem) return;
 
-    const uuid = meshItem.dataset.uuid;
-    const mesh = scene.getObjectByProperty('uuid', uuid);
-    if (!mesh) return;
+  const uuid = meshItem.dataset.uuid;
+  const mesh = scene.getObjectByProperty('uuid', uuid);
+  if (!mesh) return;
 
-    // Handle rename by clicking the name itself
-    if (target.classList.contains('mesh-name')) {
-        const action = 'rename';
-        handleMeshAction(action, mesh, target);
-        return;
-    }
-
-    // Handle button clicks and toggles
-    const actionTarget = target.closest('[data-action]');
-    if (!actionTarget) return;
-    
-    const action = actionTarget.dataset.action;
-    handleMeshAction(action, mesh, actionTarget);
+  if (target.classList.contains('mesh-name')) {
+    handleMeshAction('rename', mesh, target);
+    return;
+  }
+  const actionTarget = target.closest('[data-action]');
+  if (!actionTarget) return;
+  handleMeshAction(actionTarget.dataset.action, mesh, actionTarget);
 }
 
 function handleMeshAction(action, mesh, target) {
-    switch (action) {
-        case 'toggle-visibility':
-            mesh.visible = target.checked;
-            break;
-
-        case 'delete':
-            if (confirm(`Are you sure you want to delete "${mesh.name || 'this mesh'}"?`)) {
-                mesh.parent.remove(mesh);
-                target.closest('.mesh-item').remove();
-            }
-            break;
-
-        case 'rename':
-            const span = mesh.name ? target.closest('.mesh-item').querySelector('.mesh-name') : target;
-            const currentName = mesh.name || 'Unnamed Mesh';
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = currentName;
-            input.className = 'mesh-name-input';
-            
-            span.replaceWith(input);
-            input.focus();
-            input.select();
-            
-            const saveName = () => {
-                mesh.name = input.value.trim() || 'Unnamed Mesh';
-                const newSpan = document.createElement('span');
-                newSpan.className = 'mesh-name';
-                newSpan.textContent = mesh.name;
-                newSpan.title = "Click to rename";
-                input.replaceWith(newSpan);
-            };
-
-            input.addEventListener('blur', saveName);
-            input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur() });
-            break;
-
-        case 'texture':
-            showTexturePanel(mesh);
-            break;
+  switch (action) {
+    case 'toggle-visibility':
+      mesh.visible = target.checked; break;
+    case 'delete':
+      if (confirm(`Delete "${mesh.name || 'this mesh'}"?`)) {
+        mesh.parent.remove(mesh);
+        target.closest('.mesh-item').remove();
+      }
+      break;
+    case 'rename': {
+      const span = mesh.name ? target.closest('.mesh-item').querySelector('.mesh-name') : target;
+      const currentName = mesh.name || 'Unnamed Mesh';
+      const input = document.createElement('input');
+      input.type = 'text'; input.value = currentName; input.className = 'mesh-name-input';
+      span.replaceWith(input); input.focus(); input.select();
+      const saveName = () => {
+        mesh.name = input.value.trim() || 'Unnamed Mesh';
+        const newSpan = document.createElement('span');
+        newSpan.className = 'mesh-name'; newSpan.textContent = mesh.name; newSpan.title = "Click to rename";
+        input.replaceWith(newSpan);
+      };
+      input.addEventListener('blur', saveName);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur() });
+      break;
     }
+    case 'texture':
+      showTexturePanel(mesh); break;
+  }
 }
 
 // --- Texture Panel Logic ---
 const TEXTURE_MAPS_CONFIG = [
-    { key: 'map', label: 'Albedo (Color)', colorSpace: THREE.SRGBColorSpace },
-    { key: 'normalMap', label: 'Normal', colorSpace: THREE.LinearSRGBColorSpace },
-    { key: 'metalnessMap', label: 'Metalness', colorSpace: THREE.LinearSRGBColorSpace },
-    { key: 'roughnessMap', label: 'Roughness', colorSpace: THREE.LinearSRGBColorSpace },
-    { key: 'aoMap', label: 'Ambient Occlusion', colorSpace: THREE.LinearSRGBColorSpace },
-    { key: 'emissiveMap', label: 'Emissive', colorSpace: THREE.SRGBColorSpace },
+  { key: 'map',           label: 'Albedo (Color)',   colorSpace: THREE.SRGBColorSpace },
+  { key: 'normalMap',     label: 'Normal',           colorSpace: THREE.LinearSRGBColorSpace },
+  { key: 'metalnessMap',  label: 'Metalness',        colorSpace: THREE.LinearSRGBColorSpace },
+  { key: 'roughnessMap',  label: 'Roughness',        colorSpace: THREE.LinearSRGBColorSpace },
+  { key: 'aoMap',         label: 'Ambient Occlusion',colorSpace: THREE.LinearSRGBColorSpace },
+  { key: 'emissiveMap',   label: 'Emissive',         colorSpace: THREE.SRGBColorSpace },
 ];
 
 function showTexturePanel(mesh) {
-    activeMesh = mesh;
-    texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
-    
-    // Ensure the material is a MeshStandardMaterial
-    if (!mesh.material.isMeshStandardMaterial) {
-        const oldMaterial = mesh.material;
-        mesh.material = new THREE.MeshStandardMaterial({
-            name: oldMaterial.name,
-            color: oldMaterial.color || 0xffffff,
-            map: oldMaterial.map || null,
-        });
-        oldMaterial.dispose();
-    }
+  activeMesh = mesh;
+  texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
 
-    textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(mapInfo => {
-        const hasTexture = mesh.material[mapInfo.key] ? 'Change Texture' : 'Add Texture';
-        return `
-            <div class="texture-row">
-                <label for="tex-input-${mapInfo.key}">${mapInfo.label}</label>
-                <button class="button ghost" data-map-type="${mapInfo.key}">${hasTexture}</button>
-            </div>
-        `
-    }).join('');
+  if (!mesh.material.isMeshStandardMaterial) {
+    const oldMaterial = mesh.material;
+    mesh.material = new THREE.MeshStandardMaterial({
+      name: oldMaterial.name,
+      color: oldMaterial.color || 0xffffff,
+      map: oldMaterial.map || null,
+    });
+    oldMaterial.dispose();
+  }
 
-    mainPanel.classList.add('hidden');
-    texturePanel.classList.remove('hidden');
+  textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(mapInfo => {
+    const hasTexture = mesh.material[mapInfo.key] ? 'Change Texture' : 'Add Texture';
+    return `
+      <div class="texture-row">
+        <label>${mapInfo.label}</label>
+        <button class="button ghost" data-map-type="${mapInfo.key}">${hasTexture}</button>
+      </div>
+    `;
+  }).join('');
+
+  mainPanel.classList.add('hidden');
+  texturePanel.classList.remove('hidden');
 }
 
 function handleTextureOptionInteraction(event) {
-    const button = event.target.closest('button[data-map-type]');
-    if (!button || !activeMesh) return;
-
-    const mapType = button.dataset.mapType;
-    textureInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            handleTextureChange(activeMesh, mapType, file);
-        }
-    };
-    textureInput.click();
+  const button = event.target.closest('button[data-map-type]');
+  if (!button || !activeMesh) return;
+  const mapType = button.dataset.mapType;
+  textureInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) handleTextureChange(activeMesh, mapType, file);
+  };
+  textureInput.click();
 }
 
 function handleTextureChange(mesh, mapType, file) {
-    const objectURL = URL.createObjectURL(file);
-    const config = TEXTURE_MAPS_CONFIG.find(c => c.key === mapType);
+  const objectURL = URL.createObjectURL(file);
+  const config = TEXTURE_MAPS_CONFIG.find(c => c.key === mapType);
 
-    textureLoader.load(objectURL, (texture) => {
-        texture.flipY = false; // Required for GLTF textures
-        texture.colorSpace = config.colorSpace;
-        texture.needsUpdate = true;
+  textureLoader.load(objectURL, (texture) => {
+    texture.flipY = false;
+    texture.colorSpace = config.colorSpace;
+    texture.needsUpdate = true;
 
-        mesh.material[mapType] = texture;
-        mesh.material.needsUpdate = true;
-        
-        URL.revokeObjectURL(objectURL);
+    mesh.material[mapType] = texture;
+    mesh.material.needsUpdate = true;
 
-        // Update the button text
-        const button = textureOptionsContainer.querySelector(`button[data-map-type="${mapType}"]`);
-        if (button) button.textContent = 'Change Texture';
-
-    }, undefined, (err) => {
-        console.error('Error loading texture:', err);
-        URL.revokeObjectURL(objectURL);
-    });
+    URL.revokeObjectURL(objectURL);
+    const button = textureOptionsContainer.querySelector(`button[data-map-type="${mapType}"]`);
+    if (button) button.textContent = 'Change Texture';
+  }, undefined, (err) => {
+    console.error('Error loading texture:', err);
+    URL.revokeObjectURL(objectURL);
+  });
 }
 
 function showMainPanel() {
-    mainPanel.classList.remove('hidden');
-    texturePanel.classList.add('hidden');
-    activeMesh = null;
-    textureInput.value = ''; // Clear file input
+  mainPanel.classList.remove('hidden');
+  texturePanel.classList.add('hidden');
+  activeMesh = null;
+  textureInput.value = '';
 }
 
-// --- Export Logic ---
+// --- Export: GLB (unchanged) ---
 async function exportGLB() {
-    if (!loadedGltf) return;
+  if (!loadedGltf) return;
+  exportBtn.disabled = true;
+  exportBtn.textContent = 'Exporting...';
 
-    exportBtn.disabled = true;
-    exportBtn.textContent = 'Exporting...';
+  try {
+    const options = { binary: true, embedImages: true };
+    const result = await new Promise((resolve, reject) => {
+      gltfExporter.parse(loadedGltf.scene, resolve, reject, options);
+    });
+    const blob = new Blob([result], { type: 'model/gltf-binary' });
+    downloadBlob(blob, `${getBaseName()}.glb`);
+  } catch (error) {
+    console.error('Export GLB failed:', error);
+    alert('Export failed. See console.');
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = 'Export GLB';
+  }
+}
 
-    try {
-        const options = {
-            binary: true, // Export as a single .glb file
-            embedImages: true, // Crucial for baking textures in
-        };
+// --- Export: OBJ + MTL + Textures ZIP ---
+async function exportOBJZip() {
+  if (!loadedGltf) return;
 
-        const result = await new Promise((resolve, reject) => {
-            gltfExporter.parse(loadedGltf.scene, resolve, reject, options);
+  exportObjZipBtn.disabled = true;
+  exportObjZipBtn.textContent = 'Packing ZIP...';
+
+  try {
+    const baseName = getBaseName();
+    // Ensure every material has a stable name
+    const materials = new Map(); // name -> material
+    loadedGltf.scene.traverse((o) => {
+      if (o.isMesh) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          if (!m.name) m.name = `Material_${m.uuid.slice(0,8)}`;
+          materials.set(m.name, m);
         });
+      }
+    });
 
-        const blob = new Blob([result], { type: 'model/gltf-binary' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${loadedGltf.scene.name || 'edited_model'}.glb`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-        
-    } catch (error) {
-        console.error('An error occurred during export:', error);
-        alert('Export failed. See the browser console for more details.');
-    } finally {
-        exportBtn.disabled = false;
-        exportBtn.textContent = 'Export GLB';
+    // 1) OBJ text
+    let objText = objExporter.parse(loadedGltf.scene);
+    // Prepend mtllib reference
+    objText = `mtllib ${baseName}.mtl\n` + objText;
+
+    // 2) Build MTL text and collect texture blobs
+    const { mtlText, files } = await buildMTLandTextures(Array.from(materials.values()), baseName);
+
+    // 3) ZIP it
+    const zip = new JSZip();
+    zip.file(`${baseName}.obj`, objText);
+    zip.file(`${baseName}.mtl`, mtlText);
+    if (files.length) {
+      const texFolder = zip.folder('textures');
+      for (const f of files) {
+        texFolder.file(f.filename, f.blob);
+      }
     }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(zipBlob, `${baseName}_obj.zip`);
+  } catch (err) {
+    console.error('Export OBJ ZIP failed:', err);
+    alert('OBJ ZIP export failed. See console.');
+  } finally {
+    exportObjZipBtn.disabled = false;
+    exportObjZipBtn.textContent = 'Export OBJ (.zip)';
+  }
+}
+
+// --- Helpers ---
+function getBaseName() {
+  const n = (loadedGltf?.scene?.name || 'edited_model').trim();
+  return sanitizeFilename(n || 'edited_model');
+}
+
+function sanitizeFilename(n) {
+  return n.replace(/[^\w\-]+/g, '_');
+}
+
+function downloadBlob(blob, filename) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+async function buildMTLandTextures(materialList, baseName) {
+  let mtl = [
+    '# Generated by GLB Mesh Editor',
+    'Kd 1.000 1.000 1.000',
+    ''
+  ].join('\n');
+
+  const files = [];
+
+  for (const mat of materialList) {
+    const name = sanitizeFilename(mat.name || `Material_${mat.uuid.slice(0,8)}`);
+    const color = mat.color ? mat.color.clone() : new THREE.Color(1,1,1);
+    const opacity = (typeof mat.opacity === 'number') ? mat.opacity : 1.0;
+    const rough = (typeof mat.roughness === 'number') ? mat.roughness : 1.0;
+    const ns = Math.max(0, Math.min(1000, Math.round((1.0 - rough) * 1000))); // Phong shininess approx
+    const illum = ns > 0 ? 2 : 1;
+
+    mtl += `newmtl ${name}\n`;
+    mtl += `Kd ${color.r.toFixed(3)} ${color.g.toFixed(3)} ${color.b.toFixed(3)}\n`;
+    mtl += `d ${opacity.toFixed(3)}\n`;
+    mtl += `Ns ${ns}\n`;
+    mtl += `illum ${illum}\n`;
+
+    // Diffuse map (map_Kd)
+    if (mat.map && mat.map.image) {
+      const filename = `textures/${baseName}_${name}_diffuse.png`;
+      const blob = await textureToPNGBlob(mat.map);
+      if (blob) {
+        files.push({ filename: filename.split('/').pop(), blob });
+        mtl += `map_Kd ${filename}\n`;
+      }
+    }
+
+    // Normal map as bump (best-effort for simple pipelines)
+    if (mat.normalMap && mat.normalMap.image) {
+      const filename = `textures/${baseName}_${name}_normal.png`;
+      const blob = await textureToPNGBlob(mat.normalMap);
+      if (blob) {
+        files.push({ filename: filename.split('/').pop(), blob });
+        mtl += `map_Bump ${filename}\n`; // some readers prefer "bump" or "map_Bump"
+      }
+    }
+
+    mtl += '\n';
+  }
+
+  return { mtlText: mtl, files };
+}
+
+async function textureToPNGBlob(texture) {
+  try {
+    const img = texture.image;
+    if (!img || !img.width || !img.height) return null;
+
+    // Create a canvas and draw the image/imageBitmap
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    // Some ImageBitmaps require premultiplyAlpha handling; 2D canvas handles this ok for PNG export.
+    ctx.drawImage(img, 0, 0);
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    return blob || null;
+  } catch (e) {
+    console.warn('Failed to extract texture blob:', e);
+    return null;
+  }
 }
 
 // --- Bootstrap ---
 init();
-
 </script>
 </body>
 </html>
