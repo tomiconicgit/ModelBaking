@@ -92,8 +92,8 @@
       <div class="panel-header">
         <button id="load-model-btn" class="button">Load Model</button>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button id="tpose-btn" class="button ghost" disabled>T-Pose</button>
           <button id="export-glb-btn" class="button" disabled>Export GLB</button>
-          <button id="export-objzip-btn" class="button ghost" disabled>Export OBJ (.zip)</button>
         </div>
       </div>
       <div id="mesh-list-container">
@@ -118,8 +118,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
-import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
 
 // --- Global State ---
 let renderer, scene, camera, controls;
@@ -128,7 +126,6 @@ let activeMesh = null;
 const textureLoader = new THREE.TextureLoader();
 const gltfLoader = new GLTFLoader();
 const gltfExporter = new GLTFExporter();
-const objExporter = new OBJExporter();
 
 // --- DOM ---
 const viewerContainer = document.getElementById('viewer3d');
@@ -136,7 +133,7 @@ const mainPanel = document.getElementById('main-panel');
 const texturePanel = document.getElementById('texture-panel');
 const loadBtn = document.getElementById('load-model-btn');
 const exportBtn = document.getElementById('export-glb-btn');
-const exportObjZipBtn = document.getElementById('export-objzip-btn');
+const tposeBtn = document.getElementById('tpose-btn');
 const backBtn = document.getElementById('back-to-list-btn');
 const modelInput = document.getElementById('model-input');
 const textureInput = document.getElementById('texture-input');
@@ -194,7 +191,7 @@ function setupEventListeners() {
   loadBtn.addEventListener('click', () => modelInput.click());
   modelInput.addEventListener('change', handleModelLoad);
   exportBtn.addEventListener('click', exportGLB);
-  exportObjZipBtn.addEventListener('click', exportOBJZip);
+  tposeBtn.addEventListener('click', setTPose);
   backBtn.addEventListener('click', showMainPanel);
   meshListContainer.addEventListener('click', handleMeshListInteraction);
   textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
@@ -207,10 +204,9 @@ function handleModelLoad(e){
     gltfLoader.parse(ev.target.result,'', (gltf)=>{
       resetScene();
       loadedGltf = gltf;
-      // The material fixing function was removed from here
       scene.add(gltf.scene);
 
-      // This block correctly centers the model
+      // Center the model
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const size = box.getSize(new THREE.Vector3()).length();
       const center = box.getCenter(new THREE.Vector3());
@@ -226,7 +222,7 @@ function handleModelLoad(e){
 
       populateMeshList();
       exportBtn.disabled = false;
-      exportObjZipBtn.disabled = false;
+      tposeBtn.disabled = false;
     }, (err)=>{
       console.error('GLTF parse error:', err);
       statusEl.textContent = 'Error: Could not load model.';
@@ -249,7 +245,8 @@ function resetScene(){
   }
   loadedGltf=null;
   meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
-  exportBtn.disabled = true; exportObjZipBtn.disabled = true;
+  exportBtn.disabled = true;
+  tposeBtn.disabled = true;
 }
 
 // ================== Mesh list ==================
@@ -261,7 +258,7 @@ function populateMeshList(){
     <div class="mesh-item" data-uuid="${mesh.uuid}">
       <span class="mesh-name" title="Click to rename">${mesh.name || 'Unnamed Mesh'}</span>
       <div class="mesh-controls">
-        <button class="icon-btn" data-action="rename" title="Rename Mesh">${`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M13.2501 2.25L15.3712 4.37113L8.932 10.8103L6.81087 8.68918L13.2501 2.25ZM20.7071 5.29289C21.0976 5.68342 21.0976 6.31658 20.7071 6.70711L19.2929 8.12132L15.8787 4.70711L17.2929 3.29289C17.6834 2.90237 18.3166 2.90237 18.7071 3.29289L20.7071 5.29289ZM14.4645 6.12132L17.8787 9.53553L9.63604 17.7782C9.40879 18.0054 9.10398 18.1213 8.78923 18.1213H5C4.44772 18.1213 4 17.6736 4 17.1213V14.3321C4 14.0174 4.11593 13.7125 4.34315 13.4853L14.4645 6.12132ZM2 21.1213H22V22.1213H2V21.1213Z'/></svg>`}</button>
+        <button class="icon-btn" data-action="rename" title="Rename Mesh">${iconRename}</button>
         <button class="icon-btn" data-action="texture" title="Edit Textures">${iconTexture}</button>
         <button class="icon-btn" data-action="delete" title="Delete Mesh">${iconDelete}</button>
         <label class="toggle-switch" title="Toggle Visibility">
@@ -323,18 +320,17 @@ function showTexturePanel(mesh){
   activeMesh = mesh;
   texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
 
-  if (!mesh.material.isMeshStandardMaterial){
-    const om = mesh.material;
-    mesh.material = new THREE.MeshStandardMaterial({
-      name: om.name, color: om.color || 0xffffff, map: om.map || null
-    });
-    om.dispose();
-  }
+  // This previously problematic block that replaced materials has been REMOVED.
+  // The app will now edit textures only if the material supports it (e.g., MeshStandardMaterial).
 
-  textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(m=>{
-    const has = activeMesh.material[m.key] ? 'Change Texture' : 'Add Texture';
-    return `<div class="texture-row"><label>${m.label}</label><button class="button ghost" data-map-type="${m.key}">${has}</button></div>`;
-  }).join('');
+  if (!mesh.material || !mesh.material.isMeshStandardMaterial) {
+    textureOptionsContainer.innerHTML = `<div id="status">This mesh does not use an editable Standard Material.</div>`;
+  } else {
+    textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(m=>{
+      const has = activeMesh.material[m.key] ? 'Change Texture' : 'Add Texture';
+      return `<div class="texture-row"><label>${m.label}</label><button class="button ghost" data-map-type="${m.key}">${has}</button></div>`;
+    }).join('');
+  }
 
   mainPanel.classList.add('hidden');
   texturePanel.classList.remove('hidden');
@@ -364,63 +360,42 @@ function handleTextureChange(mesh, mapType, file){
 
 function showMainPanel(){ mainPanel.classList.remove('hidden'); texturePanel.classList.add('hidden'); activeMesh=null; textureInput.value=''; }
 
-// ================== Exports ==================
-// GLB (unchanged)
+// ================== Actions & Exports ==================
+
+/**
+ * Finds all skeletons in the loaded model and resets them to their bind pose (T-Pose).
+ */
+function setTPose() {
+  if (!loadedGltf) return;
+  let skeletonsFound = 0;
+  loadedGltf.scene.traverse(obj => {
+    if (obj.isSkinnedMesh) {
+      obj.skeleton.pose();
+      skeletonsFound++;
+    }
+  });
+
+  if (skeletonsFound > 0) {
+    alert(`Reset ${skeletonsFound} skeleton(s) to T-pose.`);
+    console.log(`Reset ${skeletonsFound} skeleton(s) to T-pose.`);
+  } else {
+    alert('No rigged skeleton was found in this model.');
+    console.warn('No skeletons found to set to T-pose.');
+  }
+}
+
 async function exportGLB(){
   if(!loadedGltf) return;
   exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
   try{
-    const options = { binary:true, embedImages:true };
+    const options = { binary:true }; // embedImages is true by default
     const result = await new Promise((res,rej)=>gltfExporter.parse(loadedGltf.scene,res,rej,options));
-    downloadBlob(new Blob([result],{type:'model/gltf-binary'}), `${getBaseName()}.glb`);
+    const baseName = sanitizeFilename((loadedGltf.scene.name || 'edited_model').trim() || 'edited_model');
+    downloadBlob(new Blob([result],{type:'model/gltf-binary'}), `${baseName}.glb`);
   }catch(e){ console.error('Export GLB failed:', e); alert('Export failed. See console.'); }
   finally{ exportBtn.disabled=false; exportBtn.textContent='Export GLB'; }
 }
 
-// OBJ + MTL + textures ZIP (fixed names & paths)
-async function exportOBJZip(){
-  if(!loadedGltf) return;
-  exportObjZipBtn.disabled = true; exportObjZipBtn.textContent = 'Packing ZIP...';
-
-  try{
-    const baseName = getBaseName();
-
-    // Collect & freeze material names BEFORE exporting (OBJ will use these names)
-    const materialList = [];
-    loadedGltf.scene.traverse(o=>{
-      if(!o.isMesh) return;
-      const arr = Array.isArray(o.material) ? o.material : [o.material];
-      arr.forEach(m=>{
-        if(!m) return;
-        if(!m.name || !m.name.trim()) m.name = `Material_${m.uuid.slice(0,8)}`;
-        if(m.userData._exportIndex === undefined){ m.userData._exportIndex = materialList.length; materialList.push(m); }
-      });
-    });
-
-    // 1) Generate OBJ text; prepend mtllib reference
-    let objText = objExporter.parse(loadedGltf.scene);
-    objText = `mtllib ${baseName}.mtl\n` + objText;
-
-    // 2) Generate matching MTL and extract texture images under textures/
-    const { mtlText, files } = await buildMTLandTextures(materialList, baseName);
-
-    // 3) ZIP structure: root has OBJ/MTL, textures/ contains images
-    const zip = new JSZip();
-    zip.file(`${baseName}.obj`, objText);
-    zip.file(`${baseName}.mtl`, mtlText);
-    for(const f of files) zip.file(f.path, f.blob);
-
-    const zipBlob = await zip.generateAsync({ type:'blob' });
-    downloadBlob(zipBlob, `${baseName}_obj.zip`);
-  }catch(err){
-    console.error('Export OBJ ZIP failed:', err);
-    alert('OBJ ZIP export failed. See console.');
-  }finally{
-    exportObjZipBtn.disabled = false; exportObjZipBtn.textContent = 'Export OBJ (.zip)';
-  }
-}
-
-function getBaseName(){ const n=(loadedGltf?.scene?.name || 'edited_model').trim(); return sanitizeFilename(n||'edited_model'); }
 function sanitizeFilename(n){ return n.replace(/[^\w\-]+/g,'_'); }
 
 function downloadBlob(blob, filename){
@@ -428,61 +403,6 @@ function downloadBlob(blob, filename){
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
 }
 
-// Build MTL text that exactly matches OBJ `usemtl` names; store textures under textures/
-async function buildMTLandTextures(materials, baseName){
-  let mtl = `# Generated by GLB Mesh Editor\n`;
-  const files = [];
-  let idx = 0;
-
-  for(const mat of materials){
-    const name = mat.name; // exact match to OBJ
-    const color = mat.color || new THREE.Color(1,1,1);
-    const opacity = (typeof mat.opacity === 'number') ? mat.opacity : 1.0;
-    const rough = (typeof mat.roughness === 'number') ? mat.roughness : 1.0;
-    const ns = Math.max(0, Math.min(1000, Math.round((1.0 - rough) * 1000))); // Phong-ish
-    const illum = ns > 0 ? 2 : 1;
-
-    mtl += `newmtl ${name}\n`;
-    mtl += `Kd ${color.r.toFixed(3)} ${color.g.toFixed(3)} ${color.b.toFixed(3)}\n`;
-    mtl += `d ${opacity.toFixed(3)}\n`;
-    mtl += `Ns ${ns}\n`;
-    mtl += `illum ${illum}\n`;
-
-    // Diffuse
-    if (mat.map?.image){
-      const path = `textures/${sanitizeFilename(baseName)}_m${idx}_diffuse.png`;
-      const blob = await textureToPNGBlob(mat.map);
-      if (blob){ files.push({ path, blob }); mtl += `map_Kd ${path}\n`; }
-    }
-    // Normal -> bump (OBJ/MTL doesn't have "normal", this is best-effort)
-    if (mat.normalMap?.image){
-      const path = `textures/${sanitizeFilename(baseName)}_m${idx}_normal.png`;
-      const blob = await textureToPNGBlob(mat.normalMap);
-      if (blob){
-        files.push({ path, blob });
-        mtl += `map_Bump ${path}\n`;  // some readers
-        mtl += `bump ${path}\n`;      // others
-      }
-    }
-
-    mtl += `\n`;
-    idx++;
-  }
-
-  return { mtlText: mtl, files };
-}
-
-async function textureToPNGBlob(texture){
-  try{
-    const img = texture.image; if(!img || !img.width || !img.height) return null;
-    const canvas = document.createElement('canvas'); canvas.width=img.width; canvas.height=img.height;
-    const ctx = canvas.getContext('2d'); ctx.drawImage(img,0,0);
-    const blob = await new Promise(res=>canvas.toBlob(res,'image/png'));
-    return blob || null;
-  }catch(e){ console.warn('Texture extract failed:', e); return null; }
-}
-
-// ================== Texture maps config reused ==================
 </script>
 </body>
 </html>
