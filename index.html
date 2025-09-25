@@ -69,7 +69,7 @@
     .button.ghost:hover{background:var(--border-color)}
     #animation-controls { border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
     #animation-status { font-size: 0.8rem; color: var(--fg-light); text-align: center; width: 100%; padding-bottom: 0.5rem;}
-    
+
     /* --- Modal Styles --- */
     .modal-overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -87,8 +87,8 @@
     }
     .modal-header { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 1.2rem; }
     .modal-body { flex-grow: 1; overflow-y: auto; padding: 1rem; }
-    .modal-footer { padding: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: .5rem;}
-    
+    .modal-footer { padding: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap;}
+
     .bone-mapping-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -162,6 +162,7 @@
             </div>
             <div class="modal-footer">
                 <button id="cancel-retarget-btn" class="button ghost">Cancel</button>
+                <button id="rename-rpm-btn" class="button accent">Rename RPM Bones</button>
                 <button id="confirm-retarget-btn" class="button">Apply Retarget</button>
             </div>
         </div>
@@ -204,6 +205,7 @@ const retargetModal = document.getElementById('retarget-modal');
 const boneMappingList = document.getElementById('bone-mapping-list');
 const confirmRetargetBtn = document.getElementById('confirm-retarget-btn');
 const cancelRetargetBtn = document.getElementById('cancel-retarget-btn');
+const renameRpmBtn = document.getElementById('rename-rpm-btn');
 
 // --- Boot ---
 init();
@@ -256,9 +258,9 @@ function setupEventListeners() {
   window.addEventListener('resize', onWindowResize);
   loadBtn.addEventListener('click', () => modelInput.click());
   modelInput.addEventListener('change', handleModelLoad);
-  exportBtn.addEventListener('click', () => alert("Export not implemented in this version."));
+  exportBtn.addEventListener('click', exportGLB);
   tposeBtn.addEventListener('click', setTPose);
-  
+
   // Animation Listeners
   loadAnimationBtn.addEventListener('click', () => animationInput.click());
   animationInput.addEventListener('change', handleAnimationLoad);
@@ -268,6 +270,7 @@ function setupEventListeners() {
   // Modal Listeners
   confirmRetargetBtn.addEventListener('click', applyManualRetarget);
   cancelRetargetBtn.addEventListener('click', () => retargetModal.classList.add('hidden'));
+  renameRpmBtn.addEventListener('click', renameRpmBones);
 }
 
 function handleModelLoad(e){
@@ -293,7 +296,7 @@ function handleModelLoad(e){
       camera.position.z += size / 1.5;
       camera.lookAt(center);
       camera.updateProjectionMatrix();
-      
+
       exportBtn.disabled = false;
       tposeBtn.disabled = false;
       loadAnimationBtn.disabled = false;
@@ -319,6 +322,43 @@ function resetScene(){
   playAnimationBtn.disabled = true;
   animationStatus.textContent = 'Load a model and an animation.';
 }
+
+// ================== Exporting ==================
+
+function exportGLB() {
+    if (!loadedGltf) {
+        alert("No model to export.");
+        return;
+    }
+    const exporter = new GLTFExporter();
+    
+    // Use the retargeted clip if available, otherwise use original animations
+    const animationsToExport = retargetedClip ? [retargetedClip] : loadedGltf.animations;
+    
+    exporter.parse(
+        loadedGltf.scene,
+        (result) => {
+            saveArrayBuffer(result, 'exported-model.glb');
+        },
+        (error) => {
+            console.error('An error occurred during export:', error);
+            alert('Export failed. Check the console for details.');
+        },
+        { binary: true, animations: animationsToExport }
+    );
+}
+
+function saveArrayBuffer(buffer, fileName) {
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link); // Required for Firefox
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
 
 // ================== Animation & Retargeting ==================
 const MIXAMO_TO_RPM_MAP = {
@@ -357,29 +397,29 @@ function showRetargetModal() {
     // 2. Get bones from RPM model's skeleton
     const rpmBones = [];
     loadedGltf.scene.traverse(obj => {
-        if (obj.isSkinnedMesh && rpmBones.length === 0) {
-           obj.skeleton.bones.forEach(bone => rpmBones.push(bone.name));
+        if (obj.isBone) {
+           rpmBones.push(obj.name);
         }
     });
      if (rpmBones.length === 0) {
-        alert("Could not find a skeleton in the loaded model.");
+        alert("Could not find any bones in the loaded model.");
         return;
     }
 
     // 3. Populate the modal UI
     boneMappingList.innerHTML = '';
     const rpmOptionsHTML = rpmBones.map(name => `<option value="${name}">${name}</option>`).join('');
-    
+
     [...mixamoBones].sort().forEach(mixamoBone => {
         const suggestedRpmBone = MIXAMO_TO_RPM_MAP[mixamoBone];
-        
+
         const span = document.createElement('span');
         span.textContent = mixamoBone;
-        
+
         const select = document.createElement('select');
         select.dataset.mixamoBone = mixamoBone;
         select.innerHTML = `<option value="">--Ignore--</option>${rpmOptionsHTML}`;
-        
+
         if (suggestedRpmBone && rpmBones.includes(suggestedRpmBone)) {
             select.value = suggestedRpmBone;
         }
@@ -390,6 +430,60 @@ function showRetargetModal() {
 
     retargetModal.classList.remove('hidden');
 }
+
+function renameRpmBones() {
+    if (!loadedGltf) {
+        alert("No model loaded to rename bones on.");
+        return;
+    }
+
+    const renameMap = {}; // Maps { currentRpmName: newMixamoName }
+    const selects = boneMappingList.querySelectorAll('select');
+    selects.forEach(select => {
+        const rpmBoneName = select.value;
+        const mixamoBoneName = select.dataset.mixamoBone;
+        if (rpmBoneName && mixamoBoneName) {
+            renameMap[rpmBoneName] = mixamoBoneName;
+        }
+    });
+
+    if (Object.keys(renameMap).length === 0) {
+        alert("No bone mappings selected. Please map bones before renaming.");
+        return;
+    }
+
+    let bonesRenamedCount = 0;
+    const bonesToRename = [];
+    loadedGltf.scene.traverse(obj => {
+        if (obj.isBone && renameMap[obj.name]) {
+            bonesToRename.push({ bone: obj, newName: renameMap[obj.name] });
+        }
+    });
+
+    // Simple collision check - advanced cases might need more logic
+    const newNames = bonesToRename.map(item => item.newName);
+    if (new Set(newNames).size !== newNames.length) {
+        alert("Error: Multiple RPM bones are being mapped to the same Mixamo bone name. Please resolve the conflict.");
+        return;
+    }
+
+    // Perform the renaming
+    bonesToRename.forEach(item => {
+        console.log(`Renaming bone '${item.bone.name}' to '${item.newName}'`);
+        item.bone.name = item.newName;
+        bonesRenamedCount++;
+    });
+
+    alert(`${bonesRenamedCount} RPM bones were renamed to match Mixamo names. You can now export the updated model.`);
+    retargetModal.classList.add('hidden');
+
+    // Clear old animation state as the skeleton has changed
+    retargetedClip = null;
+    playAnimationBtn.disabled = true;
+    if (mixer) mixer.stopAllAction();
+    animationStatus.textContent = 'Bones renamed. You may need to re-load and re-retarget an animation.';
+}
+
 
 function applyManualRetarget() {
     const manualMap = {};
@@ -441,8 +535,11 @@ function setTPose() {
   if (!loadedGltf) return;
   if (mixer) mixer.stopAllAction();
   loadedGltf.scene.traverse(obj => {
-    if (obj.isSkinnedMesh) obj.skeleton.pose();
+    if (obj.isSkinnedMesh) {
+      obj.pose();
+    }
   });
+   animationStatus.textContent = 'Model reset to T-Pose.';
 }
 
 </script>
