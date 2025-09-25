@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>GLB Texture Editor</title>
+  <title>GLB Animation Retargeter</title>
 
   <link rel="manifest" href='data:application/manifest+json,{
-    "name":"GLB Texture Editor",
-    "short_name":"GLB Editor",
+    "name":"GLB Animation Retargeter",
+    "short_name":"GLB Retargeter",
     "start_url":".",
     "display":"standalone",
     "background_color":"#101318",
@@ -18,7 +18,7 @@
   }' />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="GLB Editor" />
+  <meta name="apple-mobile-web-app-title" content="GLB Retargeter" />
   <meta name="theme-color" content="#101318" />
 
   <style>
@@ -84,6 +84,8 @@
     .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;transition:.4s;border-radius:50%}
     input:checked + .slider{background:var(--primary)}
     input:checked + .slider:before{transform:translateX(20px)}
+    #animation-controls { border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    #animation-status { font-size: 0.8rem; color: var(--fg-light); text-align: center; width: 100%; padding-bottom: 0.5rem;}
   </style>
 
   <script type="importmap">
@@ -102,12 +104,20 @@
     <div id="panel-container">
         <div id="main-panel" class="panel">
           <div class="panel-header">
-            <button id="load-model-btn" class="button">Load Model</button>
+            <button id="load-model-btn" class="button">Load RPM Model</button>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap">
               <button id="tpose-btn" class="button ghost" disabled>T-Pose</button>
               <button id="export-glb-btn" class="button" disabled>Export GLB</button>
             </div>
           </div>
+
+          <div id="animation-controls">
+             <div id="animation-status">Load a model and an animation.</div>
+             <button id="load-anim-btn" class="button ghost" disabled>Load Animation</button>
+             <button id="retarget-btn" class="button" disabled>Retarget</button>
+             <button id="play-anim-btn" class="button accent" disabled>Play Animation</button>
+          </div>
+
           <div id="mesh-list-container">
             <div id="status">Load a GLB model to begin.</div>
           </div>
@@ -123,6 +133,7 @@
     </div>
 
     <input type="file" id="model-input" accept=".glb" style="display:none" />
+    <input type="file" id="animation-input" accept=".glb" style="display:none" />
     <input type="file" id="texture-input" accept="image/png, image/jpeg" style="display:none" />
   </div>
 
@@ -137,6 +148,8 @@ let renderer, scene, camera, controls;
 let loadedGltf = null;
 let activeMesh = null;
 let mixer = null;
+let loadedAnimation = null;
+let retargetedClip = null;
 const clock = new THREE.Clock();
 const textureLoader = new THREE.TextureLoader();
 const gltfLoader = new GLTFLoader();
@@ -155,6 +168,13 @@ const textureInput = document.getElementById('texture-input');
 const meshListContainer = document.getElementById('mesh-list-container');
 const textureOptionsContainer = document.getElementById('texture-options');
 const texturePanelHeader = document.getElementById('texture-panel-header');
+// Animation DOM
+const animationInput = document.getElementById('animation-input');
+const loadAnimationBtn = document.getElementById('load-anim-btn');
+const retargetBtn = document.getElementById('retarget-btn');
+const playAnimationBtn = document.getElementById('play-anim-btn');
+const animationStatus = document.getElementById('animation-status');
+
 
 // --- Icons ---
 const iconTexture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21.2929 16.2929L19 14V11C19 10.4477 18.5523 10 18 10H14.7071L12.7071 8L11 9.70711V6C11 5.44772 10.5523 5 10 5H8L5 8L8 11H12V13L14.2929 10.7071L17 13.4142V16.5858L14.7071 18.8787L12 16.1716V19C12 19.5523 12.4477 20 13 20H16.1716L18.8787 17.2929C19.2692 16.9024 19.2692 16.2792 18.8787 15.8887L17.4142 14.4142L19.2929 12.5355C19.6834 12.145 20.3166 12.145 20.7071 12.5355L21.2929 13.1213C22.0739 13.9024 22.0739 15.1593 21.2929 15.9393V16.2929ZM3 3H19V4H20V3C20 2.44772 19.5523 2 19 2H3C2.44772 2 2 2.44772 2 3V19C2 19.5523 2.44772 20 3 20H11V19H3V3Z"/></svg>`;
@@ -217,6 +237,11 @@ function setupEventListeners() {
   backBtn.addEventListener('click', showMainPanel);
   meshListContainer.addEventListener('click', handleMeshListInteraction);
   textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
+  // Animation Listeners
+  loadAnimationBtn.addEventListener('click', () => animationInput.click());
+  animationInput.addEventListener('change', handleAnimationLoad);
+  retargetBtn.addEventListener('click', retargetAnimation);
+  playAnimationBtn.addEventListener('click', playRetargetedAnimation);
 }
 
 function handleModelLoad(e){
@@ -228,10 +253,8 @@ function handleModelLoad(e){
       loadedGltf = gltf;
       scene.add(gltf.scene);
 
-      if (gltf.animations && gltf.animations.length) {
-        mixer = new THREE.AnimationMixer(gltf.scene);
-        mixer.clipAction(gltf.animations[0]).play();
-      }
+      // Setup mixer for the main model
+      mixer = new THREE.AnimationMixer(gltf.scene);
 
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const size = box.getSize(new THREE.Vector3()).length();
@@ -249,6 +272,8 @@ function handleModelLoad(e){
       populateMeshList();
       exportBtn.disabled = false;
       tposeBtn.disabled = false;
+      loadAnimationBtn.disabled = false;
+      animationStatus.textContent = 'Model loaded. Now load a Mixamo animation.';
     }, (err)=>{
       console.error('GLTF parse error:', err);
       meshListContainer.innerHTML = `<div id="status">Error: Could not load model.</div>`;
@@ -274,10 +299,120 @@ function resetScene(){
       }
     });
   }
-  loadedGltf = null; mixer = null;
+  loadedGltf = null; mixer = null; loadedAnimation = null; retargetedClip = null;
   meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
   exportBtn.disabled = true; tposeBtn.disabled = true;
+  // Reset animation buttons
+  loadAnimationBtn.disabled = true;
+  retargetBtn.disabled = true;
+  playAnimationBtn.disabled = true;
+  animationStatus.textContent = 'Load a model and an animation.';
 }
+
+// ================== Animation Functions ==================
+const MIXAMO_TO_RPM_MAP = {
+    'mixamorigHips': 'Hips',
+    'mixamorigSpine': 'Spine',
+    'mixamorigSpine1': 'Spine1',
+    'mixamorigSpine2': 'Spine2',
+    'mixamorigNeck': 'Neck',
+    'mixamorigHead': 'Head',
+    'mixamorigLeftShoulder': 'LeftShoulder',
+    'mixamorigLeftArm': 'LeftArm',
+    'mixamorigLeftForeArm': 'LeftForeArm',
+    'mixamorigLeftHand': 'LeftHand',
+    'mixamorigLeftHandThumb1': 'LeftHandThumb1', 'mixamorigLeftHandThumb2': 'LeftHandThumb2', 'mixamorigLeftHandThumb3': 'LeftHandThumb3',
+    'mixamorigLeftHandIndex1': 'LeftHandIndex1', 'mixamorigLeftHandIndex2': 'LeftHandIndex2', 'mixamorigLeftHandIndex3': 'LeftHandIndex3',
+    'mixamorigLeftHandMiddle1': 'LeftHandMiddle1', 'mixamorigLeftHandMiddle2': 'LeftHandMiddle2', 'mixamorigLeftHandMiddle3': 'LeftHandMiddle3',
+    'mixamorigLeftHandRing1': 'LeftHandRing1', 'mixamorigLeftHandRing2': 'LeftHandRing2', 'mixamorigLeftHandRing3': 'LeftHandRing3',
+    'mixamorigLeftHandPinky1': 'LeftHandPinky1', 'mixamorigLeftHandPinky2': 'LeftHandPinky2', 'mixamorigLeftHandPinky3': 'LeftHandPinky3',
+    'mixamorigRightShoulder': 'RightShoulder',
+    'mixamorigRightArm': 'RightArm',
+    'mixamorigRightForeArm': 'RightForeArm',
+    'mixamorigRightHand': 'RightHand',
+    'mixamorigRightHandThumb1': 'RightHandThumb1', 'mixamorigRightHandThumb2': 'RightHandThumb2', 'mixamorigRightHandThumb3': 'RightHandThumb3',
+    'mixamorigRightHandIndex1': 'RightHandIndex1', 'mixamorigRightHandIndex2': 'RightHandIndex2', 'mixamorigRightHandIndex3': 'RightHandIndex3',
+    'mixamorigRightHandMiddle1': 'RightHandMiddle1', 'mixamorigRightHandMiddle2': 'RightHandMiddle2', 'mixamorigRightHandMiddle3': 'RightHandMiddle3',
+    'mixamorigRightHandRing1': 'RightHandRing1', 'mixamorigRightHandRing2': 'RightHandRing2', 'mixamorigRightHandRing3': 'RightHandRing3',
+    'mixamorigRightHandPinky1': 'RightHandPinky1', 'mixamorigRightHandPinky2': 'RightHandPinky2', 'mixamorigRightHandPinky3': 'RightHandPinky3',
+    'mixamorigLeftUpLeg': 'LeftUpLeg',
+    'mixamorigLeftLeg': 'LeftLeg',
+    'mixamorigLeftFoot': 'LeftFoot',
+    'mixamorigLeftToeBase': 'LeftToeBase',
+    'mixamorigRightUpLeg': 'RightUpLeg',
+    'mixamorigRightLeg': 'RightLeg',
+    'mixamorigRightFoot': 'RightFoot',
+    'mixamorigRightToeBase': 'RightToeBase'
+};
+
+function handleAnimationLoad(e){
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        gltfLoader.parse(ev.target.result, '', (gltf) => {
+            if (gltf.animations && gltf.animations.length) {
+                loadedAnimation = gltf.animations[0];
+                retargetBtn.disabled = false;
+                playAnimationBtn.disabled = true; // disable play until retargeted
+                animationStatus.textContent = `Animation "${loadedAnimation.name || file.name}" loaded. Ready to retarget.`;
+            } else {
+                alert('This GLB file contains no animations.');
+                animationStatus.textContent = 'Animation load failed. Please try another file.';
+            }
+        }, (err) => {
+            console.error('Animation GLTF parse error:', err);
+            alert('Could not load animation file.');
+        });
+    };
+    reader.readAsArrayBuffer(file);
+    animationInput.value = '';
+}
+
+function retargetAnimation() {
+    if (!loadedGltf || !loadedAnimation) {
+        alert("Please load a model and an animation first.");
+        return;
+    }
+
+    const newTracks = [];
+    loadedAnimation.tracks.forEach(track => {
+        const parts = track.name.split('.');
+        const mixamoBoneName = parts[0];
+        const property = parts[1];
+
+        const rpmBoneName = MIXAMO_TO_RPM_MAP[mixamoBoneName];
+        if (rpmBoneName) {
+            const newTrackName = `${rpmBoneName}.${property}`;
+            // Clone the track with the new name
+            const newTrack = track.clone();
+            newTrack.name = newTrackName;
+            newTracks.push(newTrack);
+        }
+    });
+
+    if (newTracks.length === 0) {
+        alert("Retargeting failed. Could not map any bones. Ensure the animation is from Mixamo and the model is a standard RPM avatar.");
+        return;
+    }
+
+    retargetedClip = new THREE.AnimationClip('retargeted_animation', -1, newTracks);
+    playAnimationBtn.disabled = false;
+    animationStatus.textContent = 'Retargeting complete! Ready to play.';
+    alert("Animation retargeted successfully!");
+}
+
+function playRetargetedAnimation() {
+    if (!mixer || !retargetedClip) {
+        alert("No retargeted animation available to play.");
+        return;
+    }
+    // Stop any other animations and play the new one in a loop
+    mixer.stopAllAction();
+    const action = mixer.clipAction(retargetedClip);
+    action.setLoop(THREE.LoopRepeat, Infinity).play();
+    animationStatus.textContent = `Playing "${retargetedClip.name}" in a loop.`;
+}
+
 
 // ================== Mesh list ==================
 function populateMeshList(){
@@ -346,7 +481,7 @@ const TEXTURE_MAPS_CONFIG = [
   { key:'metalnessMap', label:'Metalness', colorSpace:THREE.LinearSRGBColorSpace },
   { key:'roughnessMap', label:'Roughness', colorSpace:THREE.LinearSRGBColorSpace },
   { key:'aoMap', label:'Ambient Occlusion', colorSpace:THREE.LinearSRGBColorSpace },
-  { key:'emissiveMap', label:'Emissive', colorSpace:THREE.SRGBColorSpace },
+  { key:'emissiveMap', label:'Emissive', colorSpace:THREE.SRGBColorColorSpace },
 ];
 
 function showTexturePanel(mesh){
