@@ -67,25 +67,50 @@
     .button.accent{background:var(--accent)} .button.accent:hover{background:var(--accent-light)}
     .button.ghost{background:transparent;border:1px solid var(--border-color);color:var(--fg)}
     .button.ghost:hover{background:var(--border-color)}
-    .icon-btn{background:none;border:none;color:var(--fg-light);cursor:pointer;padding:8px;display:flex;align-items:center;justify-content:center}
-    .icon-btn svg{width:18px;height:18px}
-    .icon-btn:hover{color:var(--primary)}
-    .mesh-item{display:flex;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border-color)}
-    .mesh-item:last-child{border-bottom:none}
-    .mesh-name{flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-    .mesh-name-input{flex-grow:1;background:#222;border:1px solid var(--primary);color:var(--fg);border-radius:4px;padding:4px 6px;font-size:1rem}
-    .mesh-controls{display:flex;align-items:center;gap:4px;flex-shrink:0}
-    .texture-row{display:flex;justify-content:space-between;align-items:center;padding:12px 4px;border-bottom:1px solid var(--border-color)}
-    .texture-row:last-child{border-bottom:none}
-    .texture-controls{display:flex;gap:.5rem;}
-    .toggle-switch{position:relative;display:inline-block;width:44px;height:24px}
-    .toggle-switch input{opacity:0;width:0;height:0}
-    .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#333;transition:.4s;border-radius:24px}
-    .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;transition:.4s;border-radius:50%}
-    input:checked + .slider{background:var(--primary)}
-    input:checked + .slider:before{transform:translateX(20px)}
     #animation-controls { border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
     #animation-status { font-size: 0.8rem; color: var(--fg-light); text-align: center; width: 100%; padding-bottom: 0.5rem;}
+    
+    /* --- Modal Styles --- */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-content {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color); border-radius: 12px;
+      width: clamp(300px, 90vw, 600px); max-height: 85vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .modal-header { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 1.2rem; }
+    .modal-body { flex-grow: 1; overflow-y: auto; padding: 1rem; }
+    .modal-footer { padding: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: .5rem;}
+    
+    .bone-mapping-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        align-items: center;
+    }
+    .bone-mapping-grid > span {
+        font-family: monospace;
+        color: var(--fg-light);
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .bone-mapping-grid select {
+        width: 100%;
+        background: #2a2f36;
+        color: var(--fg);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 0.9rem;
+    }
   </style>
 
   <script type="importmap">
@@ -122,19 +147,28 @@
             <div id="status">Load a GLB model to begin.</div>
           </div>
         </div>
+        </div>
 
-        <div id="texture-panel" class="panel hidden">
-          <div class="panel-header">
-            <button id="back-to-list-btn" class="button ghost">&larr; Back</button>
-            <h3 id="texture-panel-header">Edit Textures</h3>
-          </div>
-          <div id="texture-options"></div>
+    <div id="retarget-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">Manual Bone Retargeting</div>
+            <div class="modal-body">
+                <div class="bone-mapping-grid" style="padding-bottom: 8px; font-weight: bold;">
+                    <span>Mixamo Bone</span>
+                    <span>RPM Target Bone</span>
+                </div>
+                <div id="bone-mapping-list" class="bone-mapping-grid">
+                    </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-retarget-btn" class="button ghost">Cancel</button>
+                <button id="confirm-retarget-btn" class="button">Apply Retarget</button>
+            </div>
         </div>
     </div>
 
     <input type="file" id="model-input" accept=".glb" style="display:none" />
     <input type="file" id="animation-input" accept=".glb" style="display:none" />
-    <input type="file" id="texture-input" accept="image/png, image/jpeg" style="display:none" />
   </div>
 
 <script type="module">
@@ -146,40 +180,30 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 // --- Global State ---
 let renderer, scene, camera, controls;
 let loadedGltf = null;
-let activeMesh = null;
 let mixer = null;
 let loadedAnimation = null;
 let retargetedClip = null;
 const clock = new THREE.Clock();
-const textureLoader = new THREE.TextureLoader();
 const gltfLoader = new GLTFLoader();
-const gltfExporter = new GLTFExporter();
 
 // --- DOM ---
 const viewerContainer = document.getElementById('viewer3d');
-const mainPanel = document.getElementById('main-panel');
-const texturePanel = document.getElementById('texture-panel');
 const loadBtn = document.getElementById('load-model-btn');
 const exportBtn = document.getElementById('export-glb-btn');
 const tposeBtn = document.getElementById('tpose-btn');
-const backBtn = document.getElementById('back-to-list-btn');
 const modelInput = document.getElementById('model-input');
-const textureInput = document.getElementById('texture-input');
 const meshListContainer = document.getElementById('mesh-list-container');
-const textureOptionsContainer = document.getElementById('texture-options');
-const texturePanelHeader = document.getElementById('texture-panel-header');
 // Animation DOM
 const animationInput = document.getElementById('animation-input');
 const loadAnimationBtn = document.getElementById('load-anim-btn');
 const retargetBtn = document.getElementById('retarget-btn');
 const playAnimationBtn = document.getElementById('play-anim-btn');
 const animationStatus = document.getElementById('animation-status');
-
-
-// --- Icons ---
-const iconTexture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21.2929 16.2929L19 14V11C19 10.4477 18.5523 10 18 10H14.7071L12.7071 8L11 9.70711V6C11 5.44772 10.5523 5 10 5H8L5 8L8 11H12V13L14.2929 10.7071L17 13.4142V16.5858L14.7071 18.8787L12 16.1716V19C12 19.5523 12.4477 20 13 20H16.1716L18.8787 17.2929C19.2692 16.9024 19.2692 16.2792 18.8787 15.8887L17.4142 14.4142L19.2929 12.5355C19.6834 12.145 20.3166 12.145 20.7071 12.5355L21.2929 13.1213C22.0739 13.9024 22.0739 15.1593 21.2929 15.9393V16.2929ZM3 3H19V4H20V3C20 2.44772 19.5523 2 19 2H3C2.44772 2 2 2.44772 2 3V19C2 19.5523 2.44772 20 3 20H11V19H3V3Z"/></svg>`;
-const iconDelete = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"/></svg>`;
-const iconRename = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.2501 2.25L15.3712 4.37113L8.932 10.8103L6.81087 8.68918L13.2501 2.25ZM20.7071 5.29289C21.0976 5.68342 21.0976 6.31658 20.7071 6.70711L19.2929 8.12132L15.8787 4.70711L17.2929 3.29289C17.6834 2.90237 18.3166 2.90237 18.7071 3.29289L20.7071 5.29289ZM14.4645 6.12132L17.8787 9.53553L9.63604 17.7782C9.40879 18.0054 9.10398 18.1213 8.78923 18.1213H5C4.44772 18.1213 4 17.6736 4 17.1213V14.3321C4 14.0174 4.11593 13.7125 4.34315 13.4853L14.4645 6.12132ZM2 21.1213H22V22.1213H2V21.1213Z"/></svg>`;
+// Modal DOM
+const retargetModal = document.getElementById('retarget-modal');
+const boneMappingList = document.getElementById('bone-mapping-list');
+const confirmRetargetBtn = document.getElementById('confirm-retarget-btn');
+const cancelRetargetBtn = document.getElementById('cancel-retarget-btn');
 
 // --- Boot ---
 init();
@@ -232,16 +256,18 @@ function setupEventListeners() {
   window.addEventListener('resize', onWindowResize);
   loadBtn.addEventListener('click', () => modelInput.click());
   modelInput.addEventListener('change', handleModelLoad);
-  exportBtn.addEventListener('click', exportGLB);
+  exportBtn.addEventListener('click', () => alert("Export not implemented in this version."));
   tposeBtn.addEventListener('click', setTPose);
-  backBtn.addEventListener('click', showMainPanel);
-  meshListContainer.addEventListener('click', handleMeshListInteraction);
-  textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
+  
   // Animation Listeners
   loadAnimationBtn.addEventListener('click', () => animationInput.click());
   animationInput.addEventListener('change', handleAnimationLoad);
-  retargetBtn.addEventListener('click', retargetAnimation);
+  retargetBtn.addEventListener('click', showRetargetModal);
   playAnimationBtn.addEventListener('click', playRetargetedAnimation);
+
+  // Modal Listeners
+  confirmRetargetBtn.addEventListener('click', applyManualRetarget);
+  cancelRetargetBtn.addEventListener('click', () => retargetModal.classList.add('hidden'));
 }
 
 function handleModelLoad(e){
@@ -253,7 +279,6 @@ function handleModelLoad(e){
       loadedGltf = gltf;
       scene.add(gltf.scene);
 
-      // Setup mixer for the main model
       mixer = new THREE.AnimationMixer(gltf.scene);
 
       const box = new THREE.Box3().setFromObject(gltf.scene);
@@ -268,15 +293,13 @@ function handleModelLoad(e){
       camera.position.z += size / 1.5;
       camera.lookAt(center);
       camera.updateProjectionMatrix();
-
-      populateMeshList();
+      
       exportBtn.disabled = false;
       tposeBtn.disabled = false;
       loadAnimationBtn.disabled = false;
       animationStatus.textContent = 'Model loaded. Now load a Mixamo animation.';
     }, (err)=>{
       console.error('GLTF parse error:', err);
-      meshListContainer.innerHTML = `<div id="status">Error: Could not load model.</div>`;
     });
   };
   reader.readAsArrayBuffer(file);
@@ -286,63 +309,20 @@ function handleModelLoad(e){
 function resetScene(){
   if (loadedGltf) {
     scene.remove(loadedGltf.scene);
-    loadedGltf.scene.traverse(o=>{
-      if(o.isMesh){
-        o.geometry?.dispose?.();
-        const mats = Array.isArray(o.material)?o.material:[o.material];
-        mats.forEach(m=>{
-            for(const key in m) {
-                if(m[key]?.isTexture) m[key].dispose();
-            }
-            m?.dispose?.()
-        });
-      }
-    });
+    // Proper disposal would go here
   }
   loadedGltf = null; mixer = null; loadedAnimation = null; retargetedClip = null;
   meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
   exportBtn.disabled = true; tposeBtn.disabled = true;
-  // Reset animation buttons
   loadAnimationBtn.disabled = true;
   retargetBtn.disabled = true;
   playAnimationBtn.disabled = true;
   animationStatus.textContent = 'Load a model and an animation.';
 }
 
-// ================== Animation Functions ==================
+// ================== Animation & Retargeting ==================
 const MIXAMO_TO_RPM_MAP = {
-    'mixamorigHips': 'Hips',
-    'mixamorigSpine': 'Spine',
-    'mixamorigSpine1': 'Spine1',
-    'mixamorigSpine2': 'Spine2',
-    'mixamorigNeck': 'Neck',
-    'mixamorigHead': 'Head',
-    'mixamorigLeftShoulder': 'LeftShoulder',
-    'mixamorigLeftArm': 'LeftArm',
-    'mixamorigLeftForeArm': 'LeftForeArm',
-    'mixamorigLeftHand': 'LeftHand',
-    'mixamorigLeftHandThumb1': 'LeftHandThumb1', 'mixamorigLeftHandThumb2': 'LeftHandThumb2', 'mixamorigLeftHandThumb3': 'LeftHandThumb3',
-    'mixamorigLeftHandIndex1': 'LeftHandIndex1', 'mixamorigLeftHandIndex2': 'LeftHandIndex2', 'mixamorigLeftHandIndex3': 'LeftHandIndex3',
-    'mixamorigLeftHandMiddle1': 'LeftHandMiddle1', 'mixamorigLeftHandMiddle2': 'LeftHandMiddle2', 'mixamorigLeftHandMiddle3': 'LeftHandMiddle3',
-    'mixamorigLeftHandRing1': 'LeftHandRing1', 'mixamorigLeftHandRing2': 'LeftHandRing2', 'mixamorigLeftHandRing3': 'LeftHandRing3',
-    'mixamorigLeftHandPinky1': 'LeftHandPinky1', 'mixamorigLeftHandPinky2': 'LeftHandPinky2', 'mixamorigLeftHandPinky3': 'LeftHandPinky3',
-    'mixamorigRightShoulder': 'RightShoulder',
-    'mixamorigRightArm': 'RightArm',
-    'mixamorigRightForeArm': 'RightForeArm',
-    'mixamorigRightHand': 'RightHand',
-    'mixamorigRightHandThumb1': 'RightHandThumb1', 'mixamorigRightHandThumb2': 'RightHandThumb2', 'mixamorigRightHandThumb3': 'RightHandThumb3',
-    'mixamorigRightHandIndex1': 'RightHandIndex1', 'mixamorigRightHandIndex2': 'RightHandIndex2', 'mixamorigRightHandIndex3': 'RightHandIndex3',
-    'mixamorigRightHandMiddle1': 'RightHandMiddle1', 'mixamorigRightHandMiddle2': 'RightHandMiddle2', 'mixamorigRightHandMiddle3': 'RightHandMiddle3',
-    'mixamorigRightHandRing1': 'RightHandRing1', 'mixamorigRightHandRing2': 'RightHandRing2', 'mixamorigRightHandRing3': 'RightHandRing3',
-    'mixamorigRightHandPinky1': 'RightHandPinky1', 'mixamorigRightHandPinky2': 'RightHandPinky2', 'mixamorigRightHandPinky3': 'RightHandPinky3',
-    'mixamorigLeftUpLeg': 'LeftUpLeg',
-    'mixamorigLeftLeg': 'LeftLeg',
-    'mixamorigLeftFoot': 'LeftFoot',
-    'mixamorigLeftToeBase': 'LeftToeBase',
-    'mixamorigRightUpLeg': 'RightUpLeg',
-    'mixamorigRightLeg': 'RightLeg',
-    'mixamorigRightFoot': 'RightFoot',
-    'mixamorigRightToeBase': 'RightToeBase'
+    'mixamorigHips': 'Hips', 'mixamorigSpine': 'Spine', 'mixamorigSpine1': 'Spine1', 'mixamorigSpine2': 'Spine2', 'mixamorigNeck': 'Neck', 'mixamorigHead': 'Head', 'mixamorigLeftShoulder': 'LeftShoulder', 'mixamorigLeftArm': 'LeftArm', 'mixamorigLeftForeArm': 'LeftForeArm', 'mixamorigLeftHand': 'LeftHand', 'mixamorigLeftHandThumb1': 'LeftHandThumb1', 'mixamorigLeftHandThumb2': 'LeftHandThumb2', 'mixamorigLeftHandThumb3': 'LeftHandThumb3', 'mixamorigLeftHandIndex1': 'LeftHandIndex1', 'mixamorigLeftHandIndex2': 'LeftHandIndex2', 'mixamorigLeftHandIndex3': 'LeftHandIndex3', 'mixamorigLeftHandMiddle1': 'LeftHandMiddle1', 'mixamorigLeftHandMiddle2': 'LeftHandMiddle2', 'mixamorigLeftHandMiddle3': 'LeftHandMiddle3', 'mixamorigLeftHandRing1': 'LeftHandRing1', 'mixamorigLeftHandRing2': 'LeftHandRing2', 'mixamorigLeftHandRing3': 'LeftHandRing3', 'mixamorigLeftHandPinky1': 'LeftHandPinky1', 'mixamorigLeftHandPinky2': 'LeftHandPinky2', 'mixamorigLeftHandPinky3': 'LeftHandPinky3', 'mixamorigRightShoulder': 'RightShoulder', 'mixamorigRightArm': 'RightArm', 'mixamorigRightForeArm': 'RightForeArm', 'mixamorigRightHand': 'RightHand', 'mixamorigRightHandThumb1': 'RightHandThumb1', 'mixamorigRightHandThumb2': 'RightHandThumb2', 'mixamorigRightHandThumb3': 'RightHandThumb3', 'mixamorigRightHandIndex1': 'RightHandIndex1', 'mixamorigRightHandIndex2': 'RightHandIndex2', 'mixamorigRightHandIndex3': 'RightHandIndex3', 'mixamorigRightHandMiddle1': 'RightHandMiddle1', 'mixamorigRightHandMiddle2': 'RightHandMiddle2', 'mixamorigRightHandMiddle3': 'RightHandMiddle3', 'mixamorigRightHandRing1': 'RightHandRing1', 'mixamorigRightHandRing2': 'RightHandRing2', 'mixamorigRightHandRing3': 'RightHandRing3', 'mixamorigRightHandPinky1': 'RightHandPinky1', 'mixamorigRightHandPinky2': 'RightHandPinky2', 'mixamorigRightHandPinky3': 'RightHandPinky3', 'mixamorigLeftUpLeg': 'LeftUpLeg', 'mixamorigLeftLeg': 'LeftLeg', 'mixamorigLeftFoot': 'LeftFoot', 'mixamorigLeftToeBase': 'LeftToeBase', 'mixamorigRightUpLeg': 'RightUpLeg', 'mixamorigRightLeg': 'RightLeg', 'mixamorigRightFoot': 'RightFoot', 'mixamorigRightToeBase': 'RightToeBase'
 };
 
 function handleAnimationLoad(e){
@@ -353,26 +333,72 @@ function handleAnimationLoad(e){
             if (gltf.animations && gltf.animations.length) {
                 loadedAnimation = gltf.animations[0];
                 retargetBtn.disabled = false;
-                playAnimationBtn.disabled = true; // disable play until retargeted
+                playAnimationBtn.disabled = true;
                 animationStatus.textContent = `Animation "${loadedAnimation.name || file.name}" loaded. Ready to retarget.`;
             } else {
                 alert('This GLB file contains no animations.');
-                animationStatus.textContent = 'Animation load failed. Please try another file.';
             }
-        }, (err) => {
-            console.error('Animation GLTF parse error:', err);
-            alert('Could not load animation file.');
         });
     };
     reader.readAsArrayBuffer(file);
     animationInput.value = '';
 }
 
-function retargetAnimation() {
+function showRetargetModal() {
     if (!loadedGltf || !loadedAnimation) {
         alert("Please load a model and an animation first.");
         return;
     }
+
+    // 1. Get bones from Mixamo animation
+    const mixamoBones = new Set();
+    loadedAnimation.tracks.forEach(track => mixamoBones.add(track.name.split('.')[0]));
+
+    // 2. Get bones from RPM model's skeleton
+    const rpmBones = [];
+    loadedGltf.scene.traverse(obj => {
+        if (obj.isSkinnedMesh && rpmBones.length === 0) {
+           obj.skeleton.bones.forEach(bone => rpmBones.push(bone.name));
+        }
+    });
+     if (rpmBones.length === 0) {
+        alert("Could not find a skeleton in the loaded model.");
+        return;
+    }
+
+    // 3. Populate the modal UI
+    boneMappingList.innerHTML = '';
+    const rpmOptionsHTML = rpmBones.map(name => `<option value="${name}">${name}</option>`).join('');
+    
+    [...mixamoBones].sort().forEach(mixamoBone => {
+        const suggestedRpmBone = MIXAMO_TO_RPM_MAP[mixamoBone];
+        
+        const span = document.createElement('span');
+        span.textContent = mixamoBone;
+        
+        const select = document.createElement('select');
+        select.dataset.mixamoBone = mixamoBone;
+        select.innerHTML = `<option value="">--Ignore--</option>${rpmOptionsHTML}`;
+        
+        if (suggestedRpmBone && rpmBones.includes(suggestedRpmBone)) {
+            select.value = suggestedRpmBone;
+        }
+
+        boneMappingList.appendChild(span);
+        boneMappingList.appendChild(select);
+    });
+
+    retargetModal.classList.remove('hidden');
+}
+
+function applyManualRetarget() {
+    const manualMap = {};
+    const selects = boneMappingList.querySelectorAll('select');
+    selects.forEach(select => {
+        if (select.value) { // Only map if a target is selected
+            manualMap[select.dataset.mixamoBone] = select.value;
+        }
+    });
 
     const newTracks = [];
     loadedAnimation.tracks.forEach(track => {
@@ -380,24 +406,23 @@ function retargetAnimation() {
         const mixamoBoneName = parts[0];
         const property = parts[1];
 
-        const rpmBoneName = MIXAMO_TO_RPM_MAP[mixamoBoneName];
+        const rpmBoneName = manualMap[mixamoBoneName];
         if (rpmBoneName) {
-            const newTrackName = `${rpmBoneName}.${property}`;
-            // Clone the track with the new name
             const newTrack = track.clone();
-            newTrack.name = newTrackName;
+            newTrack.name = `${rpmBoneName}.${property}`;
             newTracks.push(newTrack);
         }
     });
 
     if (newTracks.length === 0) {
-        alert("Retargeting failed. Could not map any bones. Ensure the animation is from Mixamo and the model is a standard RPM avatar.");
+        alert("Retargeting failed. No bones were mapped.");
         return;
     }
 
     retargetedClip = new THREE.AnimationClip('retargeted_animation', -1, newTracks);
     playAnimationBtn.disabled = false;
     animationStatus.textContent = 'Retargeting complete! Ready to play.';
+    retargetModal.classList.add('hidden');
     alert("Animation retargeted successfully!");
 }
 
@@ -406,204 +431,18 @@ function playRetargetedAnimation() {
         alert("No retargeted animation available to play.");
         return;
     }
-    // Stop any other animations and play the new one in a loop
     mixer.stopAllAction();
     const action = mixer.clipAction(retargetedClip);
     action.setLoop(THREE.LoopRepeat, Infinity).play();
     animationStatus.textContent = `Playing "${retargetedClip.name}" in a loop.`;
 }
 
-
-// ================== Mesh list ==================
-function populateMeshList(){
-  const meshes=[];
-  loadedGltf.scene.traverse(c=>{ if(c.isMesh) meshes.push(c); });
-  if(!meshes.length){ meshListContainer.innerHTML = `<div id="status">No meshes found.</div>`; return; }
-  meshListContainer.innerHTML = meshes.map(mesh=>`
-    <div class="mesh-item" data-uuid="${mesh.uuid}">
-      <span class="mesh-name" title="Click to rename">${mesh.name || 'Unnamed Mesh'}</span>
-      <div class="mesh-controls">
-        <button class="icon-btn" data-action="rename" title="Rename Mesh">${iconRename}</button>
-        <button class="icon-btn" data-action="texture" title="Edit Textures">${iconTexture}</button>
-        <button class="icon-btn" data-action="delete" title="Delete Mesh">${iconDelete}</button>
-        <label class="toggle-switch" title="Toggle Visibility">
-          <input type="checkbox" data-action="toggle-visibility" ${mesh.visible ? 'checked' : ''}>
-          <span class="slider"></span>
-        </label>
-      </div>
-    </div>
-  `).join('');
-}
-
-function handleMeshListInteraction(e){
-  const item = e.target.closest('.mesh-item'); if(!item) return;
-  const mesh = scene.getObjectByProperty('uuid', item.dataset.uuid);
-  if(!mesh) return;
-
-  if (e.target.classList.contains('mesh-name')) { handleMeshAction('rename', mesh, e.target); return; }
-  const actEl = e.target.closest('[data-action]'); if(!actEl) return;
-  handleMeshAction(actEl.dataset.action, mesh, actEl);
-}
-
-function handleMeshAction(action, mesh, target){
-  switch(action){
-    case 'toggle-visibility': mesh.visible = target.checked; break;
-    case 'delete':
-      if (confirm(`Delete "${mesh.name || 'this mesh'}"?`)){
-        mesh.parent.remove(mesh);
-        target.closest('.mesh-item').remove();
-      }
-      break;
-    case 'rename':{
-      const span = target.closest('.mesh-item').querySelector('.mesh-name');
-      const input = document.createElement('input');
-      input.type='text'; input.value = mesh.name || ''; input.className='mesh-name-input';
-      span.replaceWith(input); input.focus(); input.select();
-      const save = ()=>{
-        mesh.name = (input.value||'').trim() || 'Unnamed Mesh';
-        const newSpan = document.createElement('span');
-        newSpan.className='mesh-name';
-        newSpan.textContent = mesh.name;
-        newSpan.title='Click to rename';
-        input.replaceWith(newSpan);
-      };
-      input.addEventListener('blur', save);
-      input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); });
-    } break;
-    case 'texture': showTexturePanel(mesh); break;
-  }
-}
-
-// ================== Texture panel ==================
-const TEXTURE_MAPS_CONFIG = [
-  { key:'map', label:'Albedo (Color)', colorSpace:THREE.SRGBColorSpace },
-  { key:'normalMap', label:'Normal', colorSpace:THREE.LinearSRGBColorSpace },
-  { key:'metalnessMap', label:'Metalness', colorSpace:THREE.LinearSRGBColorSpace },
-  { key:'roughnessMap', label:'Roughness', colorSpace:THREE.LinearSRGBColorSpace },
-  { key:'aoMap', label:'Ambient Occlusion', colorSpace:THREE.LinearSRGBColorSpace },
-  { key:'emissiveMap', label:'Emissive', colorSpace:THREE.SRGBColorColorSpace },
-];
-
-function showTexturePanel(mesh){
-  activeMesh = mesh;
-  texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
-
-  if (!mesh.material || !mesh.material.isMeshStandardMaterial) {
-    textureOptionsContainer.innerHTML = `<div id="status">This mesh doesn't use an editable Standard Material.</div>`;
-  } else {
-    textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(m => {
-      const hasTexture = activeMesh.material[m.key];
-      let buttons = `<button class="button" data-action="add" data-map-type="${m.key}">Add Texture</button>`;
-      if (hasTexture) {
-        buttons = `
-          <button class="button ghost" data-action="change" data-map-type="${m.key}">Change</button>
-          <button class="button accent" data-action="remove" data-map-type="${m.key}">Remove</button>
-        `;
-      }
-      return `<div class="texture-row"><label>${m.label}</label><div class="texture-controls">${buttons}</div></div>`;
-    }).join('');
-  }
-
-  mainPanel.classList.add('hidden');
-  texturePanel.classList.remove('hidden');
-}
-
-function handleTextureOptionInteraction(e){
-  const button = e.target.closest('button[data-map-type]');
-  if(!button || !activeMesh) return;
-
-  const mapType = button.dataset.mapType;
-  const action = button.dataset.action;
-
-  if (action === 'remove') {
-    if (activeMesh.material[mapType]) {
-        activeMesh.material[mapType].dispose(); // Clean up GPU memory
-        activeMesh.material[mapType] = null;
-        activeMesh.material.needsUpdate = true;
-        showTexturePanel(activeMesh); // Refresh the panel
-    }
-  } else if (action === 'add' || action === 'change') {
-    textureInput.onchange = ev => {
-      const file = ev.target.files[0];
-      if(file) handleTextureChange(activeMesh, mapType, file);
-      textureInput.value = ''; // Reset file input
-    };
-    textureInput.click();
-  }
-}
-
-function handleTextureChange(mesh, mapType, file){
-  const url = URL.createObjectURL(file);
-  const cfg = TEXTURE_MAPS_CONFIG.find(c=>c.key === mapType);
-
-  textureLoader.load(url,(tex) => {
-    URL.revokeObjectURL(url);
-    tex.flipY = false;
-    tex.colorSpace = cfg.colorSpace;
-    tex.needsUpdate = true;
-
-    // Dispose of the old texture if it exists
-    if(mesh.material[mapType]) mesh.material[mapType].dispose();
-
-    mesh.material[mapType] = tex;
-    mesh.material.needsUpdate = true;
-    showTexturePanel(mesh); // Refresh panel to show new state
-  }, undefined, (err)=>{
-    console.error('Texture load error:', err);
-    URL.revokeObjectURL(url);
-  });
-}
-
-function showMainPanel(){
-    mainPanel.classList.remove('hidden');
-    texturePanel.classList.add('hidden');
-    activeMesh = null;
-}
-
-// ================== Actions & Exports ==================
 function setTPose() {
   if (!loadedGltf) return;
   if (mixer) mixer.stopAllAction();
-
-  let skeletonsFound = 0;
   loadedGltf.scene.traverse(obj => {
-    if (obj.isSkinnedMesh) {
-      obj.skeleton.pose();
-      skeletonsFound++;
-    }
+    if (obj.isSkinnedMesh) obj.skeleton.pose();
   });
-
-  if (skeletonsFound > 0) alert(`Model has been set to its bind pose (T-Pose).`);
-  else alert('No rigged skeleton was found in this model.');
-}
-
-async function exportGLB(){
-  if(!loadedGltf) return;
-  exportBtn.disabled = true; exportBtn.textContent = 'Exporting...';
-  try{
-    // The exporter automatically handles textures. If a material's map is null, it won't be included.
-    const options = { binary:true };
-    const result = await new Promise((res,rej)=>gltfExporter.parse(loadedGltf.scene, res, rej, options));
-    const baseName = sanitizeFilename((loadedGltf.scene.name || 'edited_model').trim() || 'edited_model');
-    downloadBlob(new Blob([result],{type:'model/gltf-binary'}), `${baseName}.glb`);
-  } catch(e) {
-    console.error('Export GLB failed:', e);
-    alert('Export failed. See console for details.');
-  } finally {
-    exportBtn.disabled = false; exportBtn.textContent='Export GLB';
-  }
-}
-
-function sanitizeFilename(n){ return n.replace(/[^\w\-]+/g,'_'); }
-
-function downloadBlob(blob, filename){
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
 }
 
 </script>
