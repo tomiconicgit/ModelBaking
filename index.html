@@ -1,445 +1,603 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>PWA Clothing Creator</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+    <title>GLB Mesh Editor</title>
 
-  <link rel="manifest" href='data:application/manifest+json,{
-    "name":"PWA Clothing Creator",
-    "short_name":"ClothingPWA",
-    "start_url":".",
-    "display":"standalone",
-    "background_color":"#0b0f14",
-    "theme_color":"#0b0f14",
-    "icons":[
-      {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUHEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
-    ]
-  }' />
+    <link rel="manifest" href='data:application/manifest+json,{
+        "name":"GLB Mesh Editor",
+        "short_name":"GLB Editor",
+        "start_url":".",
+        "display":"standalone",
+        "background_color":"#101318",
+        "theme_color":"#101318",
+        "icons":[
+            {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
+        ]
+    }' />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="GLB Editor" />
+    <meta name="theme-color" content="#101318" />
 
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="ClothingPWA" />
-  <meta name="theme-color" content="#0b0f14" />
+    <style>
+        :root {
+            --bg: #101318;
+            --panel-bg: rgba(22, 26, 33, 0.8);
+            --fg: #e6eef6;
+            --fg-light: #8899aa;
+            --primary: #0099ff;
+            --primary-light: #33aaff;
+            --accent: #ff4757;
+            --border-color: #2a2f36;
+        }
 
-  <style>
-    :root { --bg:#0b0f14; --fg:#e6eef6; --primary:#0099ff; --primary-light:#33aaff; --accent:#ff4757; }
-    html,body { height:100%; margin:0; overflow:hidden; }
-    body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; touch-action:none; }
-    #app { position:fixed; inset:0; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-    #viewer3d { position:fixed; top:0; left:0; right:0; height:50vh; z-index:1; touch-action:none; }
-    #viewer3d canvas { display:block; width:100%; height:100%; }
-    #content {
-      position:fixed; top:50vh; left:0; right:0; bottom:0;
-      padding:1rem; padding-left:calc(1rem + env(safe-area-inset-left));
-      padding-right:calc(1rem + env(safe-area-inset-right));
-      padding-bottom:calc(1rem + env(safe-area-inset-bottom));
-      overflow-y:auto; box-sizing:border-box; display:flex; flex-direction:column; gap:1rem; touch-action:pan-y;
+        /* --- Base & Layout --- */
+        html, body {
+            height: 100%; margin: 0; overflow: hidden;
+        }
+        body {
+            background: var(--bg); color: var(--fg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            touch-action: none;
+        }
+        #app {
+            position: fixed; inset: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #viewer3d {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+        }
+        #viewer3d canvas { display: block; width: 100%; height: 100%; }
+
+        /* --- Panels --- */
+        .panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border-color);
+            padding: 1rem;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+            display: flex; flex-direction: column;
+            max-height: 60vh;
+            transition: transform 0.3s ease-in-out;
+            touch-action: pan-y;
+        }
+        .panel.hidden { transform: translateY(100%); }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-shrink: 0;
+        }
+        .panel-header h3 { margin: 0; font-size: 1.1rem; }
+        #mesh-list-container, #texture-options {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        #status {
+            text-align: center;
+            color: var(--fg-light);
+            padding: 2rem 0;
+        }
+
+        /* --- Buttons & Controls --- */
+        .button {
+            background: var(--primary); color: #fff; border: none; border-radius: 8px;
+            padding: 10px 16px; font-size: 0.9rem; font-weight: 500; cursor: pointer;
+            transition: background-color .2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .button:hover { background: var(--primary-light); }
+        .button:disabled { background: #333; color: #777; cursor: not-allowed; }
+        .button.accent { background: var(--accent); }
+        .button.accent:hover { background: #ff6b81; }
+        .button.ghost { background: transparent; border: 1px solid var(--border-color); color: var(--fg); }
+        .button.ghost:hover { background: var(--border-color); }
+        .icon-btn {
+            background: none; border: none; color: var(--fg-light); cursor: pointer;
+            padding: 8px; display: flex; align-items: center; justify-content: center;
+        }
+        .icon-btn svg { width: 18px; height: 18px; }
+        .icon-btn:hover { color: var(--primary); }
+
+        /* --- Mesh List Item --- */
+        .mesh-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 4px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .mesh-item:last-child { border-bottom: none; }
+        .mesh-name {
+            flex-grow: 1;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        .mesh-name-input {
+            flex-grow: 1; background: #222; border: 1px solid var(--primary);
+            color: var(--fg); border-radius: 4px; padding: 4px 6px;
+            font-size: 1rem;
+        }
+        .mesh-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        /* --- Texture Editor --- */
+        .texture-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 4px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .texture-row label { font-size: 0.95rem; }
+        .texture-row:last-child { border-bottom: none; }
+
+        /* --- Toggle Switch --- */
+        .toggle-switch {
+            position: relative; display: inline-block; width: 44px; height: 24px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .4s; border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background-color: white;
+            transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+        }
     }
-    .button { background:var(--primary); color:#fff; border:none; border-radius:8px; padding:12px 16px; font-size:1rem; font-weight:500; cursor:pointer; transition:background-color .2s; }
-    .button:hover { background:var(--primary-light); }
-    .button.accent { background:var(--accent); }
-    .button.accent:hover { background:#ff6b81; }
-    .button.ghost { background:transparent; border:1px solid #2a2f36; }
-    .button:disabled { background:#333; color:#777; cursor:not-allowed; }
-    .controls-grid { display:none; grid-template-columns:auto 1fr; gap:.5rem 1rem; align-items:center; }
-    .controls-grid label { text-align:right; opacity:.8; }
-    .controls-grid input[type="range"] { width:100%; }
-    #status { font-style:italic; color:#aaa; text-align:center; }
-  </style>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
-    }
-  }
-  </script>
+    </script>
 </head>
 <body>
-  <div id="app" role="application" aria-label="3D Clothing Creator PWA">
-    <input type="file" id="model-input" accept=".glb,.gltf" style="display:none" />
-    <div id="content">
-      <h1>Surface Painter</h1>
-      <button id="load-model-btn" class="button">Load Base Model (.glb)</button>
+    <div id="app" role="application">
+        <div id="viewer3d"></div>
 
-      <div id="selection-controls" class="controls-grid">
-        <label for="pos-y">Up/Down</label>  <input type="range" id="pos-y"   min="-2"   max="2"   step="0.01" value="1">
-        <label for="pos-x">Left/Right</label><input type="range" id="pos-x"   min="-1.5" max="1.5" step="0.01" value="0">
-        <label for="pos-z">Fwd/Back</label>  <input type="range" id="pos-z"   min="-1.5" max="1.5" step="0.01" value="0">
-        <label for="scale-y">Height</label>  <input type="range" id="scale-y" min="0.1" max="2"   step="0.01" value="0.8">
-        <label for="scale-x">Width</label>   <input type="range" id="scale-x" min="0.1" max="2"   step="0.01" value="0.8">
-        <label for="scale-z">Depth</label>   <input type="range" id="scale-z" min="0.1" max="2"   step="0.01" value="0.8">
-      </div>
+        <div id="main-panel" class="panel">
+            <div class="panel-header">
+                <button id="load-model-btn" class="button">Load Model</button>
+                <button id="export-glb-btn" class="button" disabled>Export GLB</button>
+            </div>
+            <div id="mesh-list-container">
+                <div id="status">Load a GLB model to begin.</div>
+            </div>
+        </div>
 
-      <button id="add-box-btn" class="button" disabled>Add to Selection</button>
-      <button id="paint-btn" class="button accent" disabled>Paint Surface</button>
-      <button id="gen-mesh-btn" class="button ghost" disabled>Generate Mesh</button>
+        <div id="texture-panel" class="panel hidden">
+            <div class="panel-header">
+                <button id="back-to-list-btn" class="button ghost">&larr; Back</button>
+                <h3 id="texture-panel-header">Edit Textures</h3>
+            </div>
+            <div id="texture-options"></div>
+        </div>
 
-      <div id="status">Load a rigged GLB model to begin.</div>
+        <input type="file" id="model-input" accept=".glb" style="display:none" />
+        <input type="file" id="texture-input" accept="image/png, image/jpeg" style="display:none" />
     </div>
-  </div>
 
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
-    let renderer, scene, camera, controls, container;
-    let gltfRoot = null;
-    let baseModel = null;       // SkinnedMesh we operate on
-    let selectionBox = null;
+// --- Global State ---
+let renderer, scene, camera, controls;
+let loadedGltf = null;
+let activeMesh = null; // The mesh currently being edited in the texture panel
+const textureLoader = new THREE.TextureLoader();
+const gltfLoader = new GLTFLoader();
+const gltfExporter = new GLTFExporter();
 
-    const selectionVolumes = [];   // queued blue boxes
-    const committedVolumes = [];   // applied boxes (shader + mesh gen)
-    let visualVolumesGroup = null;
+// --- DOM Elements ---
+const viewerContainer = document.getElementById('viewer3d');
+const mainPanel = document.getElementById('main-panel');
+const texturePanel = document.getElementById('texture-panel');
+const loadBtn = document.getElementById('load-model-btn');
+const exportBtn = document.getElementById('export-glb-btn');
+const backBtn = document.getElementById('back-to-list-btn');
+const modelInput = document.getElementById('model-input');
+const textureInput = document.getElementById('texture-input');
+const meshListContainer = document.getElementById('mesh-list-container');
+const textureOptionsContainer = document.getElementById('texture-options');
+const texturePanelHeader = document.getElementById('texture-panel-header');
+const statusEl = document.getElementById('status');
 
-    const loadBtn = document.getElementById('load-model-btn');
-    const fileInput = document.getElementById('model-input');
-    const statusEl = document.getElementById('status');
-    const selectionControls = document.getElementById('selection-controls');
-    const addBoxBtn = document.getElementById('add-box-btn');
-    const paintBtn = document.getElementById('paint-btn');
-    const genMeshBtn = document.getElementById('gen-mesh-btn');
+// --- SVG Icons ---
+const iconTexture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21.2929 16.2929L19 14V11C19 10.4477 18.5523 10 18 10H14.7071L12.7071 8L11 9.70711V6C11 5.44772 10.5523 5 10 5H8L5 8L8 11H12V13L14.2929 10.7071L17 13.4142V16.5858L14.7071 18.8787L12 16.1716V19C12 19.5523 12.4477 20 13 20H16.1716L18.8787 17.2929C19.2692 16.9024 19.2692 16.2792 18.8787 15.8887L17.4142 14.4142L19.2929 12.5355C19.6834 12.145 20.3166 12.145 20.7071 12.5355L21.2929 13.1213C22.0739 13.9024 22.0739 15.1593 21.2929 15.9393V16.2929ZM3 3H19V4H20V3C20 2.44772 19.5523 2 19 2H3C2.44772 2 2 2.44772 2 3V19C2 19.5523 2.44772 20 3 20H11V19H3V3Z"/></svg>`;
+const iconDelete = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"/></svg>`;
+const iconRename = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M13.2501 2.25L15.3712 4.37113L8.932 10.8103L6.81087 8.68918L13.2501 2.25ZM20.7071 5.29289C21.0976 5.68342 21.0976 6.31658 20.7071 6.70711L19.2929 8.12132L15.8787 4.70711L17.2929 3.29289C17.6834 2.90237 18.3166 2.90237 18.7071 3.29289L20.7071 5.29289ZM14.4645 6.12132L17.8787 9.53553L9.63604 17.7782C9.40879 18.0054 9.10398 18.1213 8.78923 18.1213H5C4.44772 18.1213 4 17.6736 4 17.1213V14.3321C4 14.0174 4.11593 13.7125 4.34315 13.4853L14.4645 6.12132ZM2 21.1213H22V22.1213H2V21.1213Z"/></svg>`;
 
-    const sliders = {
-      y:  document.getElementById('pos-y'),
-      x:  document.getElementById('pos-x'),
-      z:  document.getElementById('pos-z'),
-      sy: document.getElementById('scale-y'),
-      sx: document.getElementById('scale-x'),
-      sz: document.getElementById('scale-z'),
-    };
 
-    // ---------- CRISP BOX MASK (modify albedo before lighting) ----------
-    const MAX_BOXES = 16;
-    const maskUniforms = {
-      uBoxCount: { value: 0 },
-      uBoxMin:   { value: Array.from({length: MAX_BOXES}, () => new THREE.Vector3()) },
-      uBoxMax:   { value: Array.from({length: MAX_BOXES}, () => new THREE.Vector3()) },
-      uPaintColor: { value: new THREE.Color(0xffffff) }
-    };
+// --- Main Functions ---
+function init() {
+    // Scene & Camera
+    scene = new THREE.Scene();
+    const bgUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='2' height='2'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23595f66'/%3E%3Cstop offset='100%25' stop-color='%2333373d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='2' height='2'/%3E%3C/svg%3E";
+    const bgTexture = textureLoader.load(bgUrl);
+    bgTexture.magFilter = THREE.NearestFilter;
+    scene.background = bgTexture;
 
-    function attachMaskShader(material) {
-      material.onBeforeCompile = (shader) => {
-        shader.uniforms.uBoxCount   = maskUniforms.uBoxCount;
-        shader.uniforms.uBoxMin     = maskUniforms.uBoxMin;
-        shader.uniforms.uBoxMax     = maskUniforms.uBoxMax;
-        shader.uniforms.uPaintColor = { value: maskUniforms.uPaintColor.value };
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1, 3);
 
-        // Get world position *after skinning*
-        shader.vertexShader =
-          'varying vec3 vWorldPos;\n' +
-          shader.vertexShader.replace(
-            '#include <worldpos_vertex>',
-            `
-            #include <worldpos_vertex>
-            vWorldPos = worldPosition.xyz;
-            `
-          );
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    viewerContainer.appendChild(renderer.domElement);
 
-        const header = `
-          varying vec3 vWorldPos;
-          uniform int  uBoxCount;
-          uniform vec3 uBoxMin[${MAX_BOXES}];
-          uniform vec3 uBoxMax[${MAX_BOXES}];
-          uniform vec3 uPaintColor;
-          bool inAnyBox(vec3 p){
-            for (int i=0; i<${MAX_BOXES}; ++i){
-              if (i >= uBoxCount) break;
-              if (all(greaterThanEqual(p,uBoxMin[i])) && all(lessThanEqual(p,uBoxMax[i]))) return true;
-            }
-            return false;
-          }
-        `;
+    // Controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.8, 0);
+    controls.enableDamping = true;
 
-        shader.fragmentShader = header + shader.fragmentShader
-          .replace(
-            'vec4 diffuseColor = vec4( diffuse, opacity );',
-            `
-            vec4 diffuseColor = vec4( diffuse, opacity );
-            if (inAnyBox(vWorldPos)) {
-              diffuseColor.rgb = uPaintColor;
-            }
-            `
-          );
+    // Lighting
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(5, 5, 5);
+    scene.add(dirLight);
 
-        material.userData.shader = shader;
-      };
-      material.needsUpdate = true;
-    }
+    // Ground Grid
+    scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
 
-    function updateMaskUniformsFromCommitted() {
-      const n = Math.min(committedVolumes.length, MAX_BOXES);
-      maskUniforms.uBoxCount.value = n;
-      for (let i = 0; i < n; i++) {
-        maskUniforms.uBoxMin.value[i].copy(committedVolumes[i].min);
-        maskUniforms.uBoxMax.value[i].copy(committedVolumes[i].max);
-      }
-      for (let i = n; i < MAX_BOXES; i++) {
-        maskUniforms.uBoxMin.value[i].set(0,0,0);
-        maskUniforms.uBoxMax.value[i].set(0,0,0);
-      }
-      if (baseModel?.material) baseModel.material.needsUpdate = true;
-      genMeshBtn.disabled = (n === 0) || !baseModel;
-    }
-    // --------------------------------------------------------------------
+    // Setup UI listeners and start animation loop
+    setupEventListeners();
+    animate();
+}
 
-    function initThree() {
-      scene = new THREE.Scene();
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
 
-      const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
-      const ctx = canvas.getContext('2d');
-      const grad = ctx.createLinearGradient(0,0,0,2);
-      grad.addColorStop(0,'#595f66'); grad.addColorStop(1,'#33373d');
-      ctx.fillStyle = grad; ctx.fillRect(0,0,2,2);
-      scene.background = new THREE.CanvasTexture(canvas);
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
 
-      camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-      camera.position.set(0, 1.5, 3.5);
+// --- UI & Event Handling ---
+function setupEventListeners() {
+    window.addEventListener('resize', onWindowResize);
+    loadBtn.addEventListener('click', () => modelInput.click());
+    modelInput.addEventListener('change', handleModelLoad);
+    exportBtn.addEventListener('click', exportGLB);
+    backBtn.addEventListener('click', showMainPanel);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Use event delegation for dynamically created mesh items
+    meshListContainer.addEventListener('click', handleMeshListInteraction);
+    textureOptionsContainer.addEventListener('click', handleTextureOptionInteraction);
+}
 
-      container = document.createElement('div'); container.id = 'viewer3d';
-      container.appendChild(renderer.domElement);
-      document.getElementById('app').prepend(container);
-
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.set(0,1,0); controls.enableDamping = true;
-
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2.5));
-      scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
-
-      visualVolumesGroup = new THREE.Group();
-      scene.add(visualVolumesGroup);
-
-      resize();
-    }
-
-    function createSelectionBox() {
-      if (selectionBox) return;
-      const geo = new THREE.BoxGeometry(1,1,1);
-      const mat = new THREE.MeshBasicMaterial({ color:0x0099ff, transparent:true, opacity:0.4 });
-      selectionBox = new THREE.Mesh(geo, mat);
-      scene.add(selectionBox);
-      updateSelectionBoxTransform();
-    }
-
-    function updateSelectionBoxTransform() {
-      if (!selectionBox) return;
-      selectionBox.position.set(+sliders.x.value, +sliders.y.value, +sliders.z.value);
-      selectionBox.scale.set(+sliders.sx.value, +sliders.sy.value, +sliders.sz.value);
-    }
-
-    function setupUI() {
-      loadBtn.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', handleFileLoad);
-
-      Object.values(sliders).forEach(s => s.addEventListener('input', updateSelectionBoxTransform));
-
-      addBoxBtn.addEventListener('click', () => {
-        const redBox = selectionBox.clone();
-        redBox.material = new THREE.MeshBasicMaterial({ color:0xff4757, wireframe:true });
-        visualVolumesGroup.add(redBox);
-
-        const volume = new THREE.Box3().setFromObject(selectionBox); // world-space
-        selectionVolumes.push(volume);
-        statusEl.textContent = `${selectionVolumes.length} volume(s) queued.`;
-      });
-
-      // PAINT / HIGHLIGHT
-      paintBtn.addEventListener('click', () => {
-        if (!baseModel || selectionVolumes.length === 0) {
-          statusEl.textContent = "Please add at least one selection box first.";
-          return;
+/**
+ * NEW: Fixes common material issues on loaded models.
+ */
+function fixModelMaterials(object) {
+    object.traverse((child) => {
+        if (child.isMesh) {
+            // Ensure we have an array of materials
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            
+            materials.forEach(material => {
+                // Force mesh to be opaque, fixing unwanted transparency
+                material.transparent = false;
+                material.depthWrite = true;
+                
+                // Render both sides of the geometry, fixing "inside-out" faces
+                material.side = THREE.DoubleSide;
+                
+                material.needsUpdate = true;
+            });
         }
-        committedVolumes.push(...selectionVolumes);
-        selectionVolumes.length = 0;
-        updateMaskUniformsFromCommitted();   // apply to shader mask
-        statusEl.textContent = `Paint applied (crisp shader mask).`;
-      });
+    });
+}
 
-      // GENERATE mesh from painted mask
-      genMeshBtn.addEventListener('click', () => {
-        if (!baseModel || committedVolumes.length === 0) {
-          statusEl.textContent = "Highlight areas first, then Generate.";
-          return;
-        }
-        statusEl.textContent = "Generating mesh…";
-        setTimeout(() => {
-          try {
-            const triCount = generateGarmentFromMask();
-            statusEl.textContent = triCount > 0
-              ? `Generated garment mesh (${triCount} tris).`
-              : `No triangles in mask area — try enlarging the selection.`;
-          } catch (e) {
-            console.error(e);
-            statusEl.textContent = `Generation error: ${e.message || e}`;
-          }
-        }, 10);
-      });
-    }
 
-    function handleFileLoad(event) {
-      const file = event.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        new GLTFLoader().parse(e.target.result, '', (gltf) => {
-          resetScene();
+function handleModelLoad(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-          gltfRoot = gltf.scene;
-          scene.add(gltfRoot);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        gltfLoader.parse(e.target.result, '', (gltf) => {
+            resetScene();
+            loadedGltf = gltf;
+            
+            // --- FIX APPLIED HERE ---
+            fixModelMaterials(gltf.scene);
 
-          // pick first SkinnedMesh
-          baseModel = null;
-          gltfRoot.traverse(obj => { if (obj.isSkinnedMesh && !baseModel) baseModel = obj; });
-          if (!baseModel) { statusEl.textContent = 'Error: No rigged mesh found in the GLB file.'; return; }
+            scene.add(gltf.scene);
+            
+            // Auto-fit camera to the new model
+            const box = new THREE.Box3().setFromObject(gltf.scene);
+            const size = box.getSize(new THREE.Vector3()).length();
+            const center = box.getCenter(new THREE.Vector3());
 
-          const originalMaterial = baseModel.material;
-          const newMaterial = originalMaterial.clone();
-          newMaterial.skinning = true;          // IMPORTANT
-          attachMaskShader(newMaterial);
-          baseModel.material = newMaterial;
-          baseModel.frustumCulled = false;
+            controls.reset();
+            controls.target.copy(center);
+            camera.position.copy(center);
+            camera.position.x += size / 1.5;
+            camera.position.y += size / 2.0;
+            camera.position.z += size / 1.5;
+            camera.lookAt(center);
+            camera.updateProjectionMatrix();
 
-          createSelectionBox();
-          selectionControls.style.display = 'grid';
-          addBoxBtn.disabled = false;
-          paintBtn.disabled = false;
-          genMeshBtn.disabled = committedVolumes.length === 0;
-          statusEl.textContent = 'Model loaded. Position the blue box then Add to Selection.';
+            populateMeshList();
+            exportBtn.disabled = false;
+        }, (error) => {
+            console.error('An error happened during GLTF parsing:', error);
+            statusEl.textContent = 'Error: Could not load model.';
         });
-      };
-      reader.readAsArrayBuffer(file);
+    };
+    reader.readAsArrayBuffer(file);
+    modelInput.value = ''; // Reset input to allow reloading the same file
+}
+
+function resetScene() {
+    if (loadedGltf) {
+        scene.remove(loadedGltf.scene);
+        // Proper disposal of resources
+        loadedGltf.scene.traverse(object => {
+            if (object.isMesh) {
+                object.geometry.dispose();
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(material => material.dispose());
+                } else {
+                    object.material.dispose();
+                }
+            }
+        });
+    }
+    loadedGltf = null;
+    meshListContainer.innerHTML = `<div id="status">Load a GLB model to begin.</div>`;
+    exportBtn.disabled = true;
+}
+
+// --- Mesh List Logic ---
+function populateMeshList() {
+    const meshes = [];
+    loadedGltf.scene.traverse(child => {
+        if (child.isMesh) meshes.push(child);
+    });
+
+    if (meshes.length === 0) {
+        meshListContainer.innerHTML = `<div id="status">No meshes found in this model.</div>`;
+        return;
     }
 
-    function resetScene() {
-      if (gltfRoot) { scene.remove(gltfRoot); gltfRoot = null; }
-      baseModel = null;
-      selectionBox = null;
-      selectionVolumes.length = 0;
-      committedVolumes.length = 0;
-      visualVolumesGroup?.clear();
-      updateMaskUniformsFromCommitted();
-      const oldGarment = scene.getObjectByName('Garment');
-      if (oldGarment) scene.remove(oldGarment);
+    const listHtml = meshes.map(mesh => `
+        <div class="mesh-item" data-uuid="${mesh.uuid}">
+            <span class="mesh-name" title="Click to rename">${mesh.name || 'Unnamed Mesh'}</span>
+            <div class="mesh-controls">
+                <button class="icon-btn" data-action="rename" title="Rename Mesh">${iconRename}</button>
+                <button class="icon-btn" data-action="texture" title="Edit Textures">${iconTexture}</button>
+                <button class="icon-btn" data-action="delete" title="Delete Mesh">${iconDelete}</button>
+                <label class="toggle-switch" title="Toggle Visibility">
+                    <input type="checkbox" data-action="toggle-visibility" ${mesh.visible ? 'checked' : ''}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    `).join('');
+
+    meshListContainer.innerHTML = listHtml;
+}
+
+function handleMeshListInteraction(event) {
+    const target = event.target;
+    const meshItem = target.closest('.mesh-item');
+    if (!meshItem) return;
+
+    const uuid = meshItem.dataset.uuid;
+    const mesh = scene.getObjectByProperty('uuid', uuid);
+    if (!mesh) return;
+
+    // Handle rename by clicking the name itself
+    if (target.classList.contains('mesh-name')) {
+        const action = 'rename';
+        handleMeshAction(action, mesh, target);
+        return;
     }
 
-    function resize() {
-      if (!container || !renderer || !camera) return;
-      const w = container.clientWidth, h = container.clientHeight;
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h; camera.updateProjectionMatrix();
+    // Handle button clicks and toggles
+    const actionTarget = target.closest('[data-action]');
+    if (!actionTarget) return;
+    
+    const action = actionTarget.dataset.action;
+    handleMeshAction(action, mesh, actionTarget);
+}
+
+function handleMeshAction(action, mesh, target) {
+    switch (action) {
+        case 'toggle-visibility':
+            mesh.visible = target.checked;
+            break;
+
+        case 'delete':
+            if (confirm(`Are you sure you want to delete "${mesh.name || 'this mesh'}"?`)) {
+                mesh.parent.remove(mesh);
+                target.closest('.mesh-item').remove();
+            }
+            break;
+
+        case 'rename':
+            const span = mesh.name ? target.closest('.mesh-item').querySelector('.mesh-name') : target;
+            const currentName = mesh.name || 'Unnamed Mesh';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.className = 'mesh-name-input';
+            
+            span.replaceWith(input);
+            input.focus();
+            input.select();
+            
+            const saveName = () => {
+                mesh.name = input.value.trim() || 'Unnamed Mesh';
+                const newSpan = document.createElement('span');
+                newSpan.className = 'mesh-name';
+                newSpan.textContent = mesh.name;
+                newSpan.title = "Click to rename";
+                input.replaceWith(newSpan);
+            };
+
+            input.addEventListener('blur', saveName);
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur() });
+            break;
+
+        case 'texture':
+            showTexturePanel(mesh);
+            break;
+    }
+}
+
+// --- Texture Panel Logic ---
+const TEXTURE_MAPS_CONFIG = [
+    { key: 'map', label: 'Albedo (Color)', colorSpace: THREE.SRGBColorSpace },
+    { key: 'normalMap', label: 'Normal', colorSpace: THREE.LinearSRGBColorSpace },
+    { key: 'metalnessMap', label: 'Metalness', colorSpace: THREE.LinearSRGBColorSpace },
+    { key: 'roughnessMap', label: 'Roughness', colorSpace: THREE.LinearSRGBColorSpace },
+    { key: 'aoMap', label: 'Ambient Occlusion', colorSpace: THREE.LinearSRGBColorSpace },
+    { key: 'emissiveMap', label: 'Emissive', colorSpace: THREE.SRGBColorSpace },
+];
+
+function showTexturePanel(mesh) {
+    activeMesh = mesh;
+    texturePanelHeader.textContent = `Edit: ${mesh.name || 'Unnamed'}`;
+    
+    // Ensure the material is a MeshStandardMaterial
+    if (!mesh.material.isMeshStandardMaterial) {
+        const oldMaterial = mesh.material;
+        mesh.material = new THREE.MeshStandardMaterial({
+            name: oldMaterial.name,
+            color: oldMaterial.color || 0xffffff,
+            map: oldMaterial.map || null,
+        });
+        oldMaterial.dispose();
     }
 
-    function animate() { requestAnimationFrame(animate); controls?.update(); renderer?.render(scene,camera); }
+    textureOptionsContainer.innerHTML = TEXTURE_MAPS_CONFIG.map(mapInfo => {
+        const hasTexture = mesh.material[mapInfo.key] ? 'Change Texture' : 'Add Texture';
+        return `
+            <div class="texture-row">
+                <label for="tex-input-${mapInfo.key}">${mapInfo.label}</label>
+                <button class="button ghost" data-map-type="${mapInfo.key}">${hasTexture}</button>
+            </div>
+        `
+    }).join('');
 
-    // --------- GARMENT GENERATION (uses built-in boneTransform) ----------
-    function generateGarmentFromMask() {
-      if (!baseModel) throw new Error('No base model');
-      (gltfRoot || scene).updateMatrixWorld(true);
-      if (baseModel.skeleton) baseModel.skeleton.update();
+    mainPanel.classList.add('hidden');
+    texturePanel.classList.remove('hidden');
+}
 
-      const geom = baseModel.geometry;
-      const pos = geom.attributes.position;
-      const idx = geom.index;
-      const triCount = idx ? idx.count / 3 : pos.count / 3;
+function handleTextureOptionInteraction(event) {
+    const button = event.target.closest('button[data-map-type]');
+    if (!button || !activeMesh) return;
 
-      // world-space verts with skinning
-      const worldVerts = new Array(pos.count);
-      const tmp = new THREE.Vector3();
-      for (let i = 0; i < pos.count; i++) {
-        if (typeof baseModel.boneTransform === 'function') {
-          baseModel.boneTransform(i, tmp); // skinned local
-        } else {
-          tmp.fromBufferAttribute(pos, i); // fallback
+    const mapType = button.dataset.mapType;
+    textureInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            handleTextureChange(activeMesh, mapType, file);
         }
-        baseModel.localToWorld(tmp);       // to world
-        worldVerts[i] = tmp.clone();
-      }
+    };
+    textureInput.click();
+}
 
-      // Clip triangles to each committed AABB (Sutherland–Hodgman on slabs)
-      const clipPlane = (poly, axis, value, keepAbove) => {
-        if (!poly.length) return poly;
-        const out = [];
-        for (let i = 0, N = poly.length; i < N; i++) {
-          const a = poly[i], b = poly[(i+1)%N];
-          const av = a.getComponent(axis), bv = b.getComponent(axis);
-          const ain = keepAbove ? av >= value : av <= value;
-          const bin = keepAbove ? bv >= value : bv <= value;
-          if (ain && bin) out.push(b.clone());
-          else if (ain && !bin) { const t=(value-av)/(bv-av); out.push(a.clone().lerp(b,t).setComponent(axis,value)); }
-          else if (!ain && bin) { const t=(value-av)/(bv-av); out.push(a.clone().lerp(b,t).setComponent(axis,value), b.clone()); }
-        }
-        return out;
-      };
-      const clipTriToBox = (A,B,C,box) => {
-        let p=[A.clone(),B.clone(),C.clone()];
-        p = clipPlane(p,0,box.min.x,true);  if (!p.length) return p;
-        p = clipPlane(p,0,box.max.x,false); if (!p.length) return p;
-        p = clipPlane(p,1,box.min.y,true);  if (!p.length) return p;
-        p = clipPlane(p,1,box.max.y,false); if (!p.length) return p;
-        p = clipPlane(p,2,box.min.z,true);  if (!p.length) return p;
-        p = clipPlane(p,2,box.max.z,false); return p;
-      };
+function handleTextureChange(mesh, mapType, file) {
+    const objectURL = URL.createObjectURL(file);
+    const config = TEXTURE_MAPS_CONFIG.find(c => c.key === mapType);
 
-      const outTris = [];
-      const readIndex = (i) => idx ? idx.getX(i) : i;
-      for (let t = 0; t < triCount; t++) {
-        const ia = readIndex(t*3+0), ib = readIndex(t*3+1), ic = readIndex(t*3+2);
-        const A = worldVerts[ia], B = worldVerts[ib], C = worldVerts[ic];
-        for (const box of committedVolumes) {
-          const poly = clipTriToBox(A,B,C,box);
-          if (poly.length < 3) continue;
-          for (let k = 1; k < poly.length - 1; k++) outTris.push([poly[0].clone(), poly[k].clone(), poly[k+1].clone()]);
-        }
-      }
+    textureLoader.load(objectURL, (texture) => {
+        texture.flipY = false; // Required for GLTF textures
+        texture.colorSpace = config.colorSpace;
+        texture.needsUpdate = true;
 
-      if (!outTris.length) return 0;
+        mesh.material[mapType] = texture;
+        mesh.material.needsUpdate = true;
+        
+        URL.revokeObjectURL(objectURL);
 
-      const EPS = 0.005;
-      const positions = new Float32Array(outTris.length * 9);
-      const normals   = new Float32Array(outTris.length * 9);
-      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+        // Update the button text
+        const button = textureOptionsContainer.querySelector(`button[data-map-type="${mapType}"]`);
+        if (button) button.textContent = 'Change Texture';
 
-      for (let i = 0; i < outTris.length; i++) {
-        a.copy(outTris[i][0]); b.copy(outTris[i][1]); c.copy(outTris[i][2]);
-        n.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
-        a.addScaledVector(n, EPS); b.addScaledVector(n, EPS); c.addScaledVector(n, EPS);
-        positions.set([a.x,a.y,a.z,b.x,b.y,b.z,c.x,c.y,c.z], i*9);
-        normals.set([n.x,n.y,n.z,n.x,n.y,n.z,n.x,n.y,n.z], i*9);
-      }
+    }, undefined, (err) => {
+        console.error('Error loading texture:', err);
+        URL.revokeObjectURL(objectURL);
+    });
+}
 
-      const old = (gltfRoot || scene).getObjectByName('Garment');
-      if (old) old.parent.remove(old);
+function showMainPanel() {
+    mainPanel.classList.remove('hidden');
+    texturePanel.classList.add('hidden');
+    activeMesh = null;
+    textureInput.value = ''; // Clear file input
+}
 
-      const garmentGeo = new THREE.BufferGeometry();
-      garmentGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      garmentGeo.setAttribute('normal',   new THREE.BufferAttribute(normals,   3));
-      garmentGeo.computeBoundingSphere();
+// --- Export Logic ---
+async function exportGLB() {
+    if (!loadedGltf) return;
 
-      const garmentMat = new THREE.MeshStandardMaterial({
-        color: 0x22ff88, metalness: 0.05, roughness: 0.55, side: THREE.DoubleSide
-      });
-      const garment = new THREE.Mesh(garmentGeo, garmentMat);
-      garment.name = 'Garment';
-      (gltfRoot || scene).add(garment);
-      garment.renderOrder = 1;
+    exportBtn.disabled = true;
+    exportBtn.textContent = 'Exporting...';
 
-      return outTris.length;
+    try {
+        const options = {
+            binary: true, // Export as a single .glb file
+            embedImages: true, // Crucial for baking textures in
+        };
+
+        const result = await new Promise((resolve, reject) => {
+            gltfExporter.parse(loadedGltf.scene, resolve, reject, options);
+        });
+
+        const blob = new Blob([result], { type: 'model/gltf-binary' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${loadedGltf.scene.name || 'edited_model'}.glb`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        
+    } catch (error) {
+        console.error('An error occurred during export:', error);
+        alert('Export failed. See the browser console for more details.');
+    } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = 'Export GLB';
     }
-    // -------------------------------------------------------------------------
+}
 
-    (function bootstrap(){
-      initThree();
-      setupUI();
-      window.addEventListener('resize', resize);
-      animate();
-    })();
-  </script>
+// --- Bootstrap ---
+init();
+
+</script>
 </body>
 </html>
