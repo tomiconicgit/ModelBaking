@@ -278,10 +278,10 @@ let meshToConnect = null;
 
 
 // --- DOM Elements ---
-const viewerContainer = document.getElementById('viewer3d');
-const modelInput = document.getElementById('model-input');
-const animationInput = document.getElementById('animation-input');
-const textureInput = document.getElementById('texture-input');
+// FIX 1: Changed const declarations to let, removed assignments.
+// We'll define these inside init() once the DOM is guaranteed to be ready.
+let viewerContainer, modelInput, animationInput, textureInput;
+
 
 // --- Init ---
 init();
@@ -289,6 +289,12 @@ updateAllPanels();
 
 // ================== Core 3D Setup ==================
 function init() {
+  // FIX 2: Assign the DOM elements here at the start of the init function.
+  viewerContainer = document.getElementById('viewer3d');
+  modelInput = document.getElementById('model-input');
+  animationInput = document.getElementById('animation-input');
+  textureInput = document.getElementById('texture-input');
+
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x222222);
 
