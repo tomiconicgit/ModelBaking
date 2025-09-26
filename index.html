@@ -61,7 +61,7 @@
     .status-text{text-align:center;color:var(--fg-light);padding:2rem 0;width:100%}
     .form-group{margin-bottom:1rem}
     .form-group label{display:block;margin-bottom:.5rem;font-size:.85rem;color:var(--fg-light)}
-    .form-group select,.form-group input{width:100%;background:#2a2f36;color:var(--fg);border:1px solid var(--border-color);border-radius:6px;padding:10px;font-size:.9rem;box-sizing:border-box}
+    .form-group select,.form-group input[type=text]{width:100%;background:#2a2f36;color:var(--fg);border:1px solid var(--border-color);border-radius:6px;padding:10px;font-size:.9rem;box-sizing:border-box}
 
     #tabs-list{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill, minmax(280px,1fr))}
     .tab-card{background:#1e222a;border:1px solid var(--border-color);border-radius:8px;padding:1rem}
@@ -77,7 +77,7 @@
     .list-item-actions{display:flex;gap:5px}
     .small-btn{padding:4px;background:none;border:1px solid var(--border-color-light);color:var(--fg-light);border-radius:4px;cursor:pointer;display:flex;align-items:center}
     .small-btn:hover{background:var(--border-color-light);color:var(--fg)}
-    #texture-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1rem;margin-top:1rem}
+    #texture-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1rem}
     .texture-slot{text-align:center} .texture-slot .button{width:100%;font-size:.8rem}
 
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000}
@@ -86,6 +86,21 @@
     .modal-header{padding:1rem;border-bottom:1px solid var(--border-color);font-size:1.2rem;font-weight:500}
     .modal-body{flex-grow:1;overflow-y:auto;padding:1rem}
     .modal-footer{padding:1rem;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
+
+    /* Transform & Material Panel Styles */
+    .transform-group, .material-group { border:1px solid var(--border-color); border-radius:8px; padding:1rem; margin-bottom:1rem; }
+    .transform-group h4, .material-group h4 { margin:0 0 1rem 0; font-size:1rem; }
+    .slider-group { display:grid; grid-template-columns:20px 1fr 70px; align-items:center; gap:.75rem; margin-bottom:.5rem; }
+    .slider-group label { font-weight:500; color:var(--fg-light); font-size:.9rem; text-align:center; margin:0; }
+    .slider-group input[type=range] { width:100%; margin:0; }
+    .slider-group input[type=number] { padding:6px; font-size:.85rem; background:#2a2f36; border:1px solid var(--border-color); color:var(--fg); border-radius:4px; box-sizing:border-box; width:100%;}
+    .slider-group-color, .slider-group-range { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:1rem; margin-bottom:.75rem; }
+    .slider-group-color label, .slider-group-range label { margin-bottom:0; color:var(--fg-light); font-size:.9rem; }
+    .slider-group-range { grid-template-columns:100px 1fr 60px; }
+    .slider-group-range span { font-family:ui-monospace, monospace; background:#2a2f36; padding:4px 8px; border-radius:4px; text-align:center; font-size:.85rem; }
+    .slider-group-color input[type=color] { width:100%; height:30px; padding:2px; border:none; background:none; border-radius:4px; overflow:hidden; }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding:0; }
+    input[type="color"]::-webkit-color-swatch { border:1px solid var(--border-color-light); border-radius:4px; }
 
     /* Tiny on-screen debugger */
     #dbg{position:fixed;right:8px;bottom:8px;z-index:1200}
@@ -143,7 +158,9 @@
         </div>
 
         <div id="transform-panel" class="panel hidden">
-          <div class="status-text">Transform controls for the active model will be implemented here.</div>
+          <div id="transform-controls-wrapper">
+            <div class="status-text">Select an active model to see transform controls.</div>
+          </div>
         </div>
 
         <div id="mesh-panel" class="panel hidden">
@@ -160,7 +177,6 @@
       </div>
     </div>
 
-    <!-- Export Modal -->
     <div id="export-modal" class="modal-overlay hidden">
       <div class="modal-content">
         <div class="modal-header">Export Model</div>
@@ -182,7 +198,6 @@
       </div>
     </div>
 
-    <!-- Bone Connect Modal -->
     <div id="bone-connect-modal" class="modal-overlay hidden">
       <div class="modal-content">
         <div class="modal-header">Connect Mesh to Bone</div>
@@ -204,13 +219,11 @@
       </div>
     </div>
 
-    <!-- Inputs (offscreen, not display:none) -->
     <input type="file" id="model-input" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" multiple class="visually-hidden-input" />
     <input type="file" id="animation-input" accept=".glb,.gltf" class="visually-hidden-input" />
     <input type="file" id="texture-input" accept="image/*" class="visually-hidden-input" />
   </div>
 
-  <!-- Tiny Debugger -->
   <div id="dbg">
     <button class="button ghost" id="toggle-log">Logs</button>
   </div>
@@ -227,7 +240,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ---------- Mini logger ----------
 const logEl = document.getElementById('dbglog');
-const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
+const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
 window.addEventListener('error', e=>{ log('ERROR:', e.message || e); });
 window.addEventListener('unhandledrejection', e=>{ log('REJECTION:', (e.reason && e.reason.message)||String(e.reason)); });
 document.getElementById('toggle-log').addEventListener('click', ()=> logEl.classList.toggle('hidden'));
@@ -463,7 +476,7 @@ function setActiveModel(id) {
 }
 
 // ================== Panel Update Functions ==================
-function updateAllPanels(){ updateDashboardPanel(); updateTabsPanel(); updateMeshPanel(); updateTexturePanel(); }
+function updateAllPanels(){ updateDashboardPanel(); updateTransformPanel(); updateTabsPanel(); updateMeshPanel(); updateTexturePanel(); }
 
 function updateDashboardPanel() {
   const statusText = document.getElementById('animation-status');
@@ -511,6 +524,97 @@ function updateDashboardPanel() {
     animTimeline.classList.add('hidden');
     removeAnimBtn.disabled = true;
   }
+}
+
+function updateTransformPanel() {
+  const wrapper = document.getElementById('transform-controls-wrapper');
+  const model = models[activeModelId];
+
+  if (!model) {
+    wrapper.innerHTML = '<div class="status-text">Select an active model to see transform controls.</div>';
+    return;
+  }
+
+  const s = model.gltf.scene;
+  const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
+
+  const createSliderGroup = (axis, value, min, max, step) => `
+    <div class="slider-group">
+      <label>${axis.toUpperCase()}</label>
+      <input type="range" data-axis="${axis}" value="${value}" min="${min}" max="${max}" step="${step}">
+      <input type="number" data-axis="${axis}" value="${value}" step="${step}">
+    </div>`;
+
+  wrapper.innerHTML = `
+    <div class="transform-group">
+      <h4>Position</h4>
+      <div id="transform-pos">
+        ${createSliderGroup('x', s.position.x.toFixed(2), -10, 10, 0.01)}
+        ${createSliderGroup('y', s.position.y.toFixed(2), -10, 10, 0.01)}
+        ${createSliderGroup('z', s.position.z.toFixed(2), -10, 10, 0.01)}
+      </div>
+    </div>
+    <div class="transform-group">
+      <h4>Rotation (Degrees)</h4>
+      <div id="transform-rot">
+        ${createSliderGroup('x', THREE.MathUtils.radToDeg(euler.x).toFixed(1), -180, 180, 0.5)}
+        ${createSliderGroup('y', THREE.MathUtils.radToDeg(euler.y).toFixed(1), -180, 180, 0.5)}
+        ${createSliderGroup('z', THREE.MathUtils.radToDeg(euler.z).toFixed(1), -180, 180, 0.5)}
+      </div>
+    </div>
+    <div class="transform-group">
+      <h4>Scale</h4>
+      <div id="transform-scale">
+        ${createSliderGroup('x', s.scale.x.toFixed(2), 0.01, 5, 0.01)}
+        ${createSliderGroup('y', s.scale.y.toFixed(2), 0.01, 5, 0.01)}
+        ${createSliderGroup('z', s.scale.z.toFixed(2), 0.01, 5, 0.01)}
+      </div>
+    </div>
+    <div class="button-group" style="margin-top:1rem;">
+      <button id="reset-transform-btn" class="button ghost">Reset Transform</button>
+    </div>`;
+
+  wrapper.querySelectorAll('#transform-pos, #transform-rot, #transform-scale').forEach(group => {
+    group.addEventListener('input', (e) => {
+      const target = e.target;
+      const axis = target.dataset.axis;
+      let value = parseFloat(target.value);
+      if (isNaN(value)) return;
+
+      const inputs = group.querySelectorAll(`[data-axis="${axis}"]`);
+      inputs.forEach(input => { if (input !== target) input.value = value; });
+
+      const modelScene = models[activeModelId]?.gltf.scene;
+      if (!modelScene) return;
+      
+      const getValues = (g) => ({
+          x: parseFloat(g.querySelector('[data-axis="x"]').value),
+          y: parseFloat(g.querySelector('[data-axis="y"]').value),
+          z: parseFloat(g.querySelector('[data-axis="z"]').value)
+      });
+
+      if (group.id === 'transform-pos') {
+        const {x,y,z} = getValues(group); modelScene.position.set(x, y, z);
+      } else if (group.id === 'transform-scale') {
+        const {x,y,z} = getValues(group); modelScene.scale.set(x, y, z);
+      } else if (group.id === 'transform-rot') {
+        const {x,y,z} = getValues(group);
+        const euler = new THREE.Euler(
+          THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z), 'YXZ'
+        );
+        modelScene.quaternion.setFromEuler(euler);
+      }
+    });
+  });
+
+  document.getElementById('reset-transform-btn').addEventListener('click', () => {
+    if (models[activeModelId]) {
+      models[activeModelId].gltf.scene.position.set(0, 0, 0);
+      models[activeModelId].gltf.scene.rotation.set(0, 0, 0);
+      models[activeModelId].gltf.scene.scale.set(1, 1, 1);
+      updateTransformPanel(); // Redraw controls with reset values
+    }
+  });
 }
 
 function updateTabsPanel() {
@@ -590,17 +694,21 @@ function updateTexturePanel() {
   container.innerHTML = `
     <div class="form-group">
       <label for="texture-mesh-select">Target Mesh:</label>
-      <select id="texture-mesh-select">
-        ${meshes.map(m => `<option value="${m.uuid}">${m.name || m.uuid}</option>`).join('')}
+      <select id="texture-mesh-select" ${!meshes.length ? 'disabled' : ''}>
+        ${meshes.length ? meshes.map(m => `<option value="${m.uuid}">${m.name || m.uuid}</option>`).join('') : '<option>No meshes found in model</option>'}
       </select>
     </div>
+    <div id="material-controls-wrapper"></div>
+    <h4 style="margin-top: 1.5rem;">Texture Maps</h4>
     <div id="texture-grid">
-      ${textureTypes.map(t => `
-        <div class="texture-slot">
-          <button class="button ghost upload-texture-btn" data-type="${t.key}">${t.name}</button>
-        </div>
-      `).join('')}
+      ${textureTypes.map(t => `<div class="texture-slot"><button class="button ghost upload-texture-btn" data-type="${t.key}">${t.name}</button></div>`).join('')}
     </div>`;
+  
+  const meshSelect = document.getElementById('texture-mesh-select');
+  meshSelect.addEventListener('change', () => updateMaterialControls(scene.getObjectByProperty('uuid', meshSelect.value)));
+  
+  if (meshes.length) updateMaterialControls(scene.getObjectByProperty('uuid', meshSelect.value));
+  else updateMaterialControls(null);
 
   container.querySelectorAll('.upload-texture-btn').forEach(btn => btn.addEventListener('click', e => {
     const meshUUID = document.getElementById('texture-mesh-select').value;
@@ -609,6 +717,60 @@ function updateTexturePanel() {
     else { alert('Please select a valid mesh.'); }
   }));
 }
+
+function updateMaterialControls(mesh) {
+    const wrapper = document.getElementById('material-controls-wrapper');
+    if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
+      wrapper.innerHTML = '<div class="status-text" style="padding:1rem 0; font-size: .9rem;">Selected mesh has no standard material properties to edit.</div>';
+      return;
+    }
+  
+    const mat = mesh.material;
+    wrapper.innerHTML = `
+    <div class="material-group">
+      <h4>Material Properties</h4>
+      <div class="slider-group-color">
+        <label for="mat-color">Base Color</label>
+        <input type="color" id="mat-color" value="#${mat.color.getHexString()}">
+      </div>
+      <div class="slider-group-range">
+        <label for="mat-metalness">Metalness</label>
+        <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
+        <span id="mat-metalness-val">${mat.metalness.toFixed(2)}</span>
+      </div>
+      <div class="slider-group-range">
+        <label for="mat-roughness">Roughness</label>
+        <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
+        <span id="mat-roughness-val">${mat.roughness.toFixed(2)}</span>
+      </div>
+      <h4>Emissive</h4>
+      <div class="slider-group-color">
+        <label for="mat-emissive">Color</label>
+        <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}">
+      </div>
+      <div class="slider-group-range">
+        <label for="mat-emissive-intensity">Intensity</label>
+        <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
+        <span id="mat-emissive-intensity-val">${mat.emissiveIntensity.toFixed(2)}</span>
+      </div>
+    </div>`;
+
+    wrapper.addEventListener('input', (e) => {
+        const selectedMesh = scene.getObjectByProperty('uuid', document.getElementById('texture-mesh-select').value);
+        if (!selectedMesh || !selectedMesh.material) return;
+        const mat = selectedMesh.material;
+        const target = e.target;
+        
+        switch (target.id) {
+            case 'mat-color': mat.color.set(target.value); break;
+            case 'mat-metalness': mat.metalness = parseFloat(target.value); document.getElementById('mat-metalness-val').textContent = mat.metalness.toFixed(2); break;
+            case 'mat-roughness': mat.roughness = parseFloat(target.value); document.getElementById('mat-roughness-val').textContent = mat.roughness.toFixed(2); break;
+            case 'mat-emissive': mat.emissive.set(target.value); break;
+            case 'mat-emissive-intensity': mat.emissiveIntensity = parseFloat(target.value); document.getElementById('mat-emissive-intensity-val').textContent = mat.emissiveIntensity.toFixed(2); break;
+        }
+    });
+}
+
 
 // ================== Feature Implementation ==================
 function copyActiveModelData() {
