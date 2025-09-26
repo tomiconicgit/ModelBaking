@@ -68,6 +68,8 @@
     #panel-content{flex-grow:1; position:relative; overflow-y:auto;}
     .panel{padding:1rem; min-height:100%;}
     .panel.hidden{display:none}
+    .hidden{display:none !important;} /* utility used by JS */
+    .visually-hidden-input{position:fixed;left:-9999px;width:1px;height:1px;opacity:0;}
 
     /* --- Common UI Elements --- */
     .button{
@@ -165,7 +167,8 @@
         <div id="panel-content">
             <div id="dashboard-panel" class="panel">
                 <div class="button-group">
-                    <button id="load-model-btn" class="button">Load Model(s)</button>
+                    <!-- label triggers file input reliably on iOS/PWA -->
+                    <label id="load-model-btn" class="button" for="model-input">Load Model(s)</label>
                     <button id="export-glb-btn" class="button" disabled>Export Active</button>
                     <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
                     <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
@@ -250,9 +253,10 @@
         </div>
     </div>
 
-    <input type="file" id="model-input" accept=".glb" multiple style="display:none" />
-    <input type="file" id="animation-input" accept=".glb" style="display:none" />
-    <input type="file" id="texture-input" accept="image/*" style="display:none" />
+    <!-- Inputs: offscreen (not display:none) so labels can trigger them on iOS -->
+    <input type="file" id="model-input" accept=".glb" multiple class="visually-hidden-input" />
+    <input type="file" id="animation-input" accept=".glb" class="visually-hidden-input" />
+    <input type="file" id="texture-input" accept="image/*" class="visually-hidden-input" />
   </div>
 
 <script type="module">
@@ -261,7 +265,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { SkeletonHelper } from 'three/addons/helpers/SkeletonHelper.js';
-
 
 // --- Global State ---
 let renderer, scene, camera, controls;
@@ -276,12 +279,11 @@ let textureTarget = { mesh: null, type: null };
 // For mesh-bone connection
 let meshToConnect = null;
 
-
 // --- DOM Elements ---
-// FIX 1: Changed const declarations to let, removed assignments.
-// We'll define these inside init() once the DOM is guaranteed to be ready.
-let viewerContainer, modelInput, animationInput, textureInput;
-
+const viewerContainer = document.getElementById('viewer3d');
+const modelInput = document.getElementById('model-input');
+const animationInput = document.getElementById('animation-input');
+const textureInput = document.getElementById('texture-input');
 
 // --- Init ---
 init();
@@ -289,12 +291,6 @@ updateAllPanels();
 
 // ================== Core 3D Setup ==================
 function init() {
-  // FIX 2: Assign the DOM elements here at the start of the init function.
-  viewerContainer = document.getElementById('viewer3d');
-  modelInput = document.getElementById('model-input');
-  animationInput = document.getElementById('animation-input');
-  textureInput = document.getElementById('texture-input');
-
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x222222);
 
@@ -313,7 +309,11 @@ function init() {
   controls.enableDamping = true;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 3));
-  scene.add(new THREE.DirectionalLight(0xffffff, 2.5).position.set(5, 5, 5));
+  // FIX: create the light, set position, then add it
+  const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+  dirLight.position.set(5, 5, 5);
+  scene.add(dirLight);
+
   scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
 
   setupEventListeners();
@@ -356,8 +356,7 @@ function setupEventListeners() {
     animationInput.addEventListener('change', handleAnimationLoad);
     textureInput.addEventListener('change', handleTextureLoad);
 
-    // Dashboard Buttons
-    document.getElementById('load-model-btn').addEventListener('click', () => modelInput.click());
+    // Dashboard Buttons (label#load-model-btn triggers input directly; no JS needed)
     document.getElementById('export-glb-btn').addEventListener('click', openExportModal);
     document.getElementById('copy-data-btn').addEventListener('click', copyActiveModelData);
     document.getElementById('toggle-rig-btn').addEventListener('click', toggleRigVisibility);
@@ -378,7 +377,6 @@ function setupEventListeners() {
     document.getElementById('cancel-bone-connect-btn').addEventListener('click', () => document.getElementById('bone-connect-modal').classList.add('hidden'));
     document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
 }
-
 
 // ================== Model & Asset Handling ==================
 function handleModelLoad(e){
@@ -459,7 +457,7 @@ function removeModel(id) {
             obj.geometry.dispose();
             if (Array.isArray(obj.material)) {
                 obj.material.forEach(mat => mat.dispose());
-            } else {
+            } else if (obj.material) {
                 obj.material.dispose();
             }
         }
@@ -661,7 +659,6 @@ function updateTexturePanel() {
     }));
 }
 
-
 // ================== Feature Implementation ==================
 
 // --- Dashboard ---
@@ -673,9 +670,8 @@ function copyActiveModelData() {
     // Find first skinned mesh to report bone connection if any
     let parentInfo = "Scene Root";
     model.gltf.scene.traverse(obj => {
-        if (obj.isSkinnedMesh && obj.skeleton.bones.length > 0) {
-            parentInfo = `Skinned mesh with ${obj.skeleton.bones.length} bones.`
-            return;
+        if (obj.isSkinnedMesh && obj.skeleton && obj.skeleton.bones.length > 0) {
+            parentInfo = `Skinned mesh with ${obj.skeleton.bones.length} bones.`;
         }
     });
 
@@ -687,7 +683,7 @@ function copyActiveModelData() {
 
     navigator.clipboard.writeText(JSON.stringify(data, null, 2))
         .then(() => alert('Model data copied to clipboard.'))
-        .catch(err => alert('Failed to copy data.'));
+        .catch(() => alert('Failed to copy data.'));
 }
 
 function toggleRigVisibility() {
@@ -784,10 +780,10 @@ function deleteMesh(uuid) {
     if (mesh) {
         mesh.parent.remove(mesh);
         // Full cleanup
-        mesh.geometry.dispose();
+        mesh.geometry?.dispose?.();
         if (Array.isArray(mesh.material)) {
-            mesh.material.forEach(m => m.dispose());
-        } else {
+            mesh.material.forEach(m => m?.dispose?.());
+        } else if (mesh.material) {
             mesh.material.dispose();
         }
         updateMeshPanel();
@@ -817,8 +813,9 @@ function handleTextureLoad(e) {
         texture.flipY = false;
 
         const { mesh, type } = textureTarget;
-        if (!mesh.material.isMeshStandardMaterial) {
+        if (!mesh.material || !mesh.material.isMeshStandardMaterial) {
             alert('Cannot apply PBR texture. Target mesh does not have a standard material.');
+            URL.revokeObjectURL(url);
             return;
         }
 
@@ -840,21 +837,22 @@ function openBoneConnectModal(uuid) {
     document.getElementById('bone-connect-mesh-name').textContent = `"${meshToConnect.name || '(unnamed)'}"`;
     const targetModelSelect = document.getElementById('bone-connect-target-model');
 
-    const otherModels = Object.entries(models).filter(([id]) => id !== activeModelId);
+    // FIX: proper skeleton presence detection
+    const otherModels = Object.entries(models).filter(([id, model]) => {
+        if (id === activeModelId) return false;
+        let hasSkel = false;
+        model.gltf.scene.traverse(o => { if (o.isSkinnedMesh || o.isBone) hasSkel = true; });
+        return hasSkel;
+    });
+
     if(otherModels.length === 0) {
         alert("No other models with skeletons available to connect to.");
         return;
     }
 
-    targetModelSelect.innerHTML = otherModels.map(([id, model]) => {
-         const hasSkeleton = model.gltf.scene.getObjectByProperty('isSkinnedMesh');
-         return hasSkeleton ? `<option value="${id}">${model.fileInfo.name}</option>` : '';
-    }).join('');
-
-    if(!targetModelSelect.innerHTML) {
-         alert("No other models with skeletons available to connect to.");
-        return;
-    }
+    targetModelSelect.innerHTML = otherModels.map(([id, model]) =>
+         `<option value="${id}">${model.fileInfo.name}</option>`
+    ).join('');
 
     populateBoneConnectBones();
     modal.classList.remove('hidden');
@@ -869,7 +867,7 @@ function populateBoneConnectBones() {
     targetModel.gltf.scene.traverse(obj => { if(obj.isBone) bones.push(obj); });
 
     const targetBoneSelect = document.getElementById('bone-connect-target-bone');
-    targetBoneSelect.innerHTML = bones.map(bone => `<option value="${bone.uuid}">${bone.name}</option>`).join('');
+    targetBoneSelect.innerHTML = bones.map(bone => `<option value="${bone.uuid}">${bone.name || bone.uuid}</option>`).join('');
 }
 
 function confirmBoneConnection() {
@@ -878,7 +876,7 @@ function confirmBoneConnection() {
 
     if (meshToConnect && targetBone) {
         targetBone.attach(meshToConnect); // attach() preserves world transform
-        alert(`Mesh "${meshToConnect.name}" connected to bone "${targetBone.name}".`);
+        alert(`Mesh "${meshToConnect.name || '(unnamed)'}" connected to bone "${targetBone.name || targetBone.uuid}".`);
         document.getElementById('bone-connect-modal').classList.add('hidden');
         updateMeshPanel();
     } else {
@@ -898,7 +896,7 @@ function openExportModal() {
     ).join('');
 
     select.value = activeModelId; // Default to active model
-    const currentName = models[select.value].fileInfo.name.replace('.glb', '');
+    const currentName = models[select.value].fileInfo.name.replace(/\.glb$/i, '');
     document.getElementById('export-filename-input').value = `${currentName}_edited`;
 
     document.getElementById('export-modal').classList.remove('hidden');
@@ -917,7 +915,7 @@ function exportGLB() {
         alert("Please provide a filename.");
         return;
     }
-    if (!filename.toLowerCase().endsWith('.glb')) {
+    if (!/\.glb$/i.test(filename)) {
         filename += '.glb';
     }
 
@@ -960,7 +958,7 @@ function formatBytes(bytes, decimals = 2) {
 function calculateModelStats(object) {
     let polygons = 0, vertices = 0;
     object.traverse(obj => {
-        if (obj.isMesh) {
+        if (obj.isMesh && obj.geometry && obj.geometry.attributes?.position) {
             const geom = obj.geometry;
             if (geom.index) {
                 polygons += geom.index.count / 3;
