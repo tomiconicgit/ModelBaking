@@ -152,7 +152,7 @@
           </div>
         </div>
 
-        <!-- Game Grid panel -->
+        <!-- Game Grid -->
         <div id="grid-panel" class="panel hidden">
           <h3 style="margin-top:0">Game Grid</h3>
           <div class="form-row">
@@ -190,7 +190,7 @@
 
           <div class="button-group">
             <button id="rebuild-grid-btn" class="button ghost">Rebuild Grid</button>
-            <button id="snap-active-btn" class="button">Snap Active to Grid</button>
+            <button id="snap-active-btn" class="button">Snap Active to Center Tile</button>
             <button id="place-at-cursor-btn" class="button">Place Active at Cursor</button>
             <button id="stick-ground-btn" class="button ghost">Stick Active to Ground (Y=0)</button>
           </div>
@@ -432,7 +432,7 @@ function buildGameGrid(){
   gridHelper.position.y = 0.0001; // tiny lift to avoid z-flicker with Y=0 items
   scene.add(gridHelper);
 
-  // Major lines every 5 tiles (same as chunk here, but keeps logic if you up the size)
+  // Major lines every 5 tiles
   const g = new THREE.BufferGeometry();
   const verts = [];
   const half = size * 0.5;
@@ -515,14 +515,9 @@ function setupEventListeners() {
   });
   snapModeSelect.addEventListener('change', ()=>{ GRID.snapMode = snapModeSelect.value; });
   rebuildGridBtn.addEventListener('click', buildGameGrid);
-  snapActiveBtn.addEventListener('click', ()=> snapActiveToGrid());
-  placeAtCursorBtn.addEventListener('click', ()=> placeActiveAtCursor());
-  stickGroundBtn.addEventListener('click', ()=> stickActiveToGround());
-  fitBtn.addEventListener('click', ()=>{
-    const tilesX = Math.max(0.1, parseFloat(fitXInput.value)||1);
-    const tilesZ = Math.max(0.1, parseFloat(fitZInput.value)||1);
-    fitActiveToTiles(tilesX, tilesZ);
-  });
+
+  // Center-tile snap buttons
+  snapActiveBtn.addEventListener('click', snapActiveToCenterTile);
 }
 
 /* ================== Model handling ================== */
@@ -608,11 +603,10 @@ function getActiveScene(){
   const m = models[activeModelId];
   return m?.gltf?.scene || null;
 }
-function snapActiveToGrid(){
+// NEW: Snap ONLY position X/Z to the center tile (0,0). Keep scale & rotation.
+function snapActiveToCenterTile(){
   const s = getActiveScene(); if (!s) return;
-  const x = snapCoord(s.position.x);
-  const z = snapCoord(s.position.z);
-  s.position.set(x, s.position.y, z);
+  s.position.set(0, s.position.y, 0);
 }
 function placeActiveAtCursor(){
   const s = getActiveScene(); if (!s) return;
@@ -715,7 +709,7 @@ function updateTransformPanel() {
         ${createSliderGroup('z', s.position.z.toFixed(2), -250, 250, 0.01)}
       </div>
       <div class="button-group" style="margin-top:.5rem;">
-        <button id="snap-now-btn" class="button">Snap to Grid</button>
+        <button id="snap-now-btn" class="button">Snap to Center Tile</button>
         <button id="stick-now-btn" class="button ghost">Stick to Ground</button>
       </div>
     </div>
@@ -769,7 +763,8 @@ function updateTransformPanel() {
     });
   });
 
-  wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToGrid);
+  // Snap & stick buttons
+  wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToCenterTile);
   wrapper.querySelector('#stick-now-btn').addEventListener('click', stickActiveToGround);
 }
 function updateTabsPanel() {
