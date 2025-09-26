@@ -158,17 +158,17 @@
           <div class="form-row">
             <div class="form-group">
               <label>Tile Size (units)</label>
-              <input id="grid-tile-size" type="number" value="1" min="0.01" step="0.01">
+              <input id="grid-tile-size"  type="number" value="10" min="0.01" step="0.01">
             </div>
             <div class="form-group">
               <label>Chunk Size (tiles per side)</label>
-              <input id="grid-chunk-size" type="number" value="50" min="1" step="1">
+              <input id="grid-chunk-size" type="number" value="5" min="1" step="1">
             </div>
             <div class="form-group">
               <label>Snap Mode</label>
               <select id="grid-snap-mode">
-                <option value="centers" selected>Tile Centers (n+0.5)</option>
-                <option value="edges">Tile Edges (n)</option>
+                <option value="centers" selected>Tile Centers (…,-20,-10,0,10,…)</option>
+                <option value="edges">Tile Edges (…,-5,5,15,…)</option>
               </select>
             </div>
           </div>
@@ -195,7 +195,7 @@
             <button id="stick-ground-btn" class="button ghost">Stick Active to Ground (Y=0)</button>
           </div>
 
-          <p class="status-text" style="padding-top:1rem">Clean grid only (no terrain). 1 unit = 1 tile by default.</p>
+          <p class="status-text" style="padding-top:1rem">Grid-only view. 1 tile = 10 world units. Centers at multiples of 10.</p>
         </div>
 
         <div id="transform-panel" class="panel hidden">
@@ -281,33 +281,27 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /* ---------- Logger ---------- */
 const logEl = document.getElementById('dbglog');
-const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
+const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
 window.addEventListener('error', e=>{ log('ERROR:', e.message || e); });
 window.addEventListener('unhandledrejection', e=>{ log('REJECTION:', (e.reason && e.reason.message)||String(e.reason)); });
 document.getElementById('toggle-log').addEventListener('click', ()=> logEl.classList.toggle('hidden'));
 
-/* ---------- Grid config & helpers ---------- */
+/* ---------- Grid config (MATCHES GAME) ---------- */
 const GRID = {
-  tile: 1,           // world units per tile
-  chunk: 50,         // tiles per side
-  snapMode: 'centers'  // 'centers' => n+0.5 tiles, 'edges' => n tiles
+  tile: 10,      // = TILE_SIZE in your game
+  chunk: 5,      // tiles per side (one 50×50 world-units chunk)
+  snapMode: 'centers' // centers at …,-20,-10,0,10,…
 };
 const hud = document.getElementById('hud');
 
+// centers => n*t ; edges => n*t + t/2
 function snapCoord(v){
   const t = GRID.tile;
-  if (GRID.snapMode === 'centers') {
-    const n = Math.round(v / t - 0.5) + 0.5; // center of nearest tile
-    return n * t;
-  } else {
-    const n = Math.round(v / t);             // edge
-    return n * t;
-  }
+  return GRID.snapMode === 'edges'
+    ? Math.round((v - t*0.5)/t)*t + t*0.5
+    : Math.round(v/t)*t;
 }
-function tileIndexFromWorld(v){
-  const half = GRID.chunk / 2;
-  return Math.floor(v / GRID.tile + half);   // 0..chunk-1
-}
+function tileIndexFromWorld(v){ return Math.round(v / GRID.tile); }
 function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
@@ -429,24 +423,22 @@ function clearGrid(){
 function buildGameGrid(){
   clearGrid();
 
-  const size = GRID.chunk * GRID.tile;
-  const divisions = GRID.chunk;
+  const size = GRID.chunk * GRID.tile;     // 5 * 10 = 50 world units (one game chunk)
+  const divisions = GRID.chunk;            // 5×5 tiles
 
   gridHelper = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x2a2f36);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.95;
-  gridHelper.position.y = 0.0001; // slight lift to avoid z-flicker with models exactly at Y=0
+  gridHelper.position.y = 0.0001; // tiny lift to avoid z-flicker with Y=0 items
   scene.add(gridHelper);
 
+  // Major lines every 5 tiles (same as chunk here, but keeps logic if you up the size)
   const g = new THREE.BufferGeometry();
   const verts = [];
   const half = size * 0.5;
-  for (let i = 0; i <= GRID.chunk; i += 5) {
-    const x = -half + i * GRID.tile;
-    verts.push(x,0.00015,-half, x,0.00015,half);
-    const z = -half + i * GRID.tile;
-    verts.push(-half,0.00015,z, half,0.00015,z);
-  }
+  const step = GRID.tile * 5;
+  for (let x = -half; x <= half + 1e-6; x += step) verts.push(x,0.00015,-half, x,0.00015,half);
+  for (let z = -half; z <= half + 1e-6; z += step) verts.push(-half,0.00015,z, half,0.00015,z);
   g.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
   majorLines = new THREE.LineSegments(
     g,
@@ -454,10 +446,11 @@ function buildGameGrid(){
   );
   scene.add(majorLines);
 
+  // Cursor cross (snapped)
   const crossG = new THREE.BufferGeometry();
   crossG.setAttribute('position', new THREE.Float32BufferAttribute([
-    -0.4,0.001,0, 0.4,0.001,0,
-     0,0.001,-0.4, 0,0.001,0.4
+    -4,0.001,0, 4,0.001,0,
+     0,0.001,-4, 0,0.001,4
   ],3));
   cursorCross = new THREE.LineSegments(crossG, new THREE.LineBasicMaterial({ color:0xff4444 }));
   scene.add(cursorCross);
@@ -513,16 +506,14 @@ function setupEventListeners() {
   document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
 
   tileSizeInput.addEventListener('change', ()=>{
-    GRID.tile = Math.max(0.01, parseFloat(tileSizeInput.value)||1);
+    GRID.tile = Math.max(0.01, parseFloat(tileSizeInput.value)||10);
     buildGameGrid();
   });
   chunkSizeInput.addEventListener('change', ()=>{
-    GRID.chunk = Math.max(1, parseInt(chunkSizeInput.value)||50);
+    GRID.chunk = Math.max(1, parseInt(chunkSizeInput.value)||5);
     buildGameGrid();
   });
-  snapModeSelect.addEventListener('change', ()=>{
-    GRID.snapMode = snapModeSelect.value;
-  });
+  snapModeSelect.addEventListener('change', ()=>{ GRID.snapMode = snapModeSelect.value; });
   rebuildGridBtn.addEventListener('click', buildGameGrid);
   snapActiveBtn.addEventListener('click', ()=> snapActiveToGrid());
   placeAtCursorBtn.addEventListener('click', ()=> placeActiveAtCursor());
@@ -719,9 +710,9 @@ function updateTransformPanel() {
     <div class="transform-group">
       <h4>Position</h4>
       <div id="transform-pos">
-        ${createSliderGroup('x', s.position.x.toFixed(2), -50, 50, 0.01)}
-        ${createSliderGroup('y', s.position.y.toFixed(2), -10, 10, 0.01)}
-        ${createSliderGroup('z', s.position.z.toFixed(2), -50, 50, 0.01)}
+        ${createSliderGroup('x', s.position.x.toFixed(2), -250, 250, 0.01)}
+        ${createSliderGroup('y', s.position.y.toFixed(2), -50, 50, 0.01)}
+        ${createSliderGroup('z', s.position.z.toFixed(2), -250, 250, 0.01)}
       </div>
       <div class="button-group" style="margin-top:.5rem;">
         <button id="snap-now-btn" class="button">Snap to Grid</button>
