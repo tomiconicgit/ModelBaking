@@ -97,7 +97,7 @@
     /* Tiny on-screen debugger */
     #dbg{position:fixed;right:8px;bottom:8px;z-index:1200}
     #dbg button{opacity:.6}
-    #dbglog{position:fixed;inset:auto 8px 48px auto;right:8px;bottom:48px;width:min(90vw,520px);max-height:40vh;overflow:auto;background:#000c;border:1px solid #333;padding:.5rem;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px;color:#9fe}
+    #dbglog{position:fixed;inset:auto 8px 48px auto;right:8px;bottom:48px;width:min(90vw,520px);max-height:40vh;overflow:auto;background:#000c;border:1px solid #333;padding:.5rem;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;font-size:12px;color:#9fe}
     #dbglog.hidden{display:none}
   </style>
 
@@ -152,7 +152,7 @@
           </div>
         </div>
 
-        <!-- NEW: Game Grid panel -->
+        <!-- Game Grid panel -->
         <div id="grid-panel" class="panel hidden">
           <h3 style="margin-top:0">Game Grid</h3>
           <div class="form-row">
@@ -195,7 +195,7 @@
             <button id="stick-ground-btn" class="button ghost">Stick Active to Ground (Y=0)</button>
           </div>
 
-          <p class="status-text" style="padding-top:1rem">1 unit = 1 tile. Central 20×20 dirt shows your mining patch.</p>
+          <p class="status-text" style="padding-top:1rem">Clean grid only (no terrain). 1 unit = 1 tile by default.</p>
         </div>
 
         <div id="transform-panel" class="panel hidden">
@@ -279,28 +279,34 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ---------- Mini logger ----------
+/* ---------- Logger ---------- */
 const logEl = document.getElementById('dbglog');
-const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
+const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
 window.addEventListener('error', e=>{ log('ERROR:', e.message || e); });
 window.addEventListener('unhandledrejection', e=>{ log('REJECTION:', (e.reason && e.reason.message)||String(e.reason)); });
 document.getElementById('toggle-log').addEventListener('click', ()=> logEl.classList.toggle('hidden'));
 
-// ---------- Grid Config / Helpers ----------
+/* ---------- Grid config & helpers ---------- */
 const GRID = {
-  tile: 1,     // 1 unit = 1 tile
-  chunk: 50,   // tiles per side
-  snapMode: 'centers' // 'centers' => n+0.5, 'edges' => n
+  tile: 1,           // world units per tile
+  chunk: 50,         // tiles per side
+  snapMode: 'centers'  // 'centers' => n+0.5 tiles, 'edges' => n tiles
 };
 const hud = document.getElementById('hud');
+
 function snapCoord(v){
-  return GRID.snapMode === 'centers' ? Math.round(v - 0.5) + 0.5 : Math.round(v);
+  const t = GRID.tile;
+  if (GRID.snapMode === 'centers') {
+    const n = Math.round(v / t - 0.5) + 0.5; // center of nearest tile
+    return n * t;
+  } else {
+    const n = Math.round(v / t);             // edge
+    return n * t;
+  }
 }
 function tileIndexFromWorld(v){
-  // world edges at -chunk/2 .. +chunk/2; centers at (n+0.5) if snapMode='centers'
   const half = GRID.chunk / 2;
-  const idx = Math.floor(v + half); // edges index 0..49
-  return idx;
+  return Math.floor(v / GRID.tile + half);   // 0..chunk-1
 }
 function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
@@ -308,7 +314,7 @@ function updateHud(worldX, worldZ){
   hud.textContent = `tile: (${tx},${tz}) • mode: ${GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 
-// ---------- Global State ----------
+/* ---------- Global state ---------- */
 let renderer, scene, camera, controls, pmremGen, envTex;
 const clock = new THREE.Clock();
 const gltfLoader = new GLTFLoader();
@@ -318,31 +324,29 @@ gltfLoader.setDRACOLoader(draco);
 gltfLoader.setMeshoptDecoder(MeshoptDecoder);
 const textureLoader = new THREE.TextureLoader();
 
-const models = {}; // { id: { gltf, mixer, fileInfo, animation, skeletonHelper } }
+const models = {};
 let activeModelId = null;
 let modelIdCounter = 0;
 
 let textureTarget = { mesh:null, type:null };
 let meshToConnect = null;
 
-// Grid visuals
+/* Grid visuals (no terrain planes) */
 let gridHelper = null;
-let bigFloor = null;      // large plane to catch shadows (optional off)
-let dirtPatch = null;     // central 20x20
-let centerDots = null;    // optional center markers
-let cursorCross = null;   // red cross at snapped cursor
+let majorLines = null;
+let cursorCross = null;
 
-// Raycasting to y=0 plane
+/* Raycasting to Y=0 plane */
 const raycaster = new THREE.Raycaster();
 const planeY0 = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
 
-// ---------- DOM ----------
+/* ---------- DOM ---------- */
 const viewerContainer = document.getElementById('viewer3d');
 const modelInput = document.getElementById('model-input');
 const animationInput = document.getElementById('animation-input');
 const textureInput = document.getElementById('texture-input');
 
-// Grid panel controls
+/* Grid panel controls */
 const tileSizeInput = document.getElementById('grid-tile-size');
 const chunkSizeInput = document.getElementById('grid-chunk-size');
 const snapModeSelect = document.getElementById('grid-snap-mode');
@@ -354,12 +358,12 @@ const fitXInput = document.getElementById('fit-tiles-x');
 const fitZInput = document.getElementById('fit-tiles-z');
 const fitBtn = document.getElementById('fit-footprint-btn');
 
-// ---------- Init ----------
+/* ---------- Init ---------- */
 init();
 updateAllPanels();
-buildGameGrid(); // draw grid once
+buildGameGrid();
 
-// ================== Core 3D Setup ==================
+/* ================== Core 3D Setup ================== */
 function init() {
   scene = new THREE.Scene();
   renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
@@ -370,7 +374,6 @@ function init() {
   renderer.setClearColor(0x101318, 1);
   viewerContainer.appendChild(renderer.domElement);
 
-  // Camera + controls
   camera = new THREE.PerspectiveCamera(50, renderer.domElement.clientWidth/renderer.domElement.clientHeight, 0.1, 5000);
   camera.position.set(0, 8, 12);
 
@@ -381,23 +384,18 @@ function init() {
   controls.maxDistance = 200;
   controls.maxPolarAngle = Math.PI * 0.499;
 
-  // Environment lighting (visible + PBR env)
   pmremGen = new THREE.PMREMGenerator(renderer);
   envTex = pmremGen.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
   scene.background = new THREE.Color(0x101318);
 
-  // Lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x555555, 1.1);
-  hemi.position.set(0, 1, 0);
   scene.add(hemi);
 
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(-6, 10, 6);
-  dir.castShadow = false;
   scene.add(dir);
 
-  // Axes
   const axes = new THREE.AxesHelper(1.2);
   axes.position.set(0, 0.001, 0);
   scene.add(axes);
@@ -405,7 +403,6 @@ function init() {
   setupEventListeners();
   animate();
 }
-
 function animate(){
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
@@ -413,7 +410,6 @@ function animate(){
   controls.update();
   renderer.render(scene, camera);
 }
-
 function onWindowResize(){
   const w = viewerContainer.clientWidth || window.innerWidth;
   const h = viewerContainer.clientHeight || Math.round(window.innerHeight*0.55);
@@ -425,73 +421,49 @@ new ResizeObserver(onWindowResize).observe(viewerContainer);
 window.addEventListener('resize', onWindowResize);
 renderer.getContext().canvas.addEventListener('webglcontextlost', (e)=>{ e.preventDefault(); log('WebGL context lost'); });
 
-// ================== Game Grid Drawing ==================
+/* ================== Grid drawing (no terrain) ================== */
 function clearGrid(){
-  [gridHelper, bigFloor, dirtPatch, centerDots, cursorCross].forEach(obj => obj && scene.remove(obj));
-  gridHelper = bigFloor = dirtPatch = centerDots = cursorCross = null;
+  [gridHelper, majorLines, cursorCross].forEach(obj => obj && scene.remove(obj));
+  gridHelper = majorLines = cursorCross = null;
 }
-
 function buildGameGrid(){
   clearGrid();
 
-  // SCALE NOTE: 1 unit = 1 tile. Grid from -chunk/2 .. +chunk/2 in both X/Z.
   const size = GRID.chunk * GRID.tile;
   const divisions = GRID.chunk;
 
-  // Base floor (very subtle)
-  bigFloor = new THREE.Mesh(
-    new THREE.PlaneGeometry(size, size),
-    new THREE.MeshStandardMaterial({ color: 0x20262f, roughness: 1, metalness: 0 })
-  );
-  bigFloor.rotation.x = -Math.PI/2;
-  bigFloor.position.set(0, 0, 0);
-  bigFloor.receiveShadow = true;
-  scene.add(bigFloor);
-
-  // Central 20×20 dirt patch (mining area)
-  const dirtSize = 20 * GRID.tile;
-  dirtPatch = new THREE.Mesh(
-    new THREE.PlaneGeometry(dirtSize, dirtSize),
-    new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 1, metalness: 0 })
-  );
-  dirtPatch.rotation.x = -Math.PI/2;
-  dirtPatch.position.set(0, -0.0002, 0); // just below grid lines
-  dirtPatch.receiveShadow = false;
-  scene.add(dirtPatch);
-
-  // Grid lines (accurate 1×1)
   gridHelper = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x2a2f36);
   gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.9;
-  gridHelper.position.y = 0.0001;
+  gridHelper.material.opacity = 0.95;
+  gridHelper.position.y = 0.0001; // slight lift to avoid z-flicker with models exactly at Y=0
   scene.add(gridHelper);
 
-  // Major lines every 5 tiles (optional accent)
-  const major = new THREE.BufferGeometry();
+  const g = new THREE.BufferGeometry();
   const verts = [];
   const half = size * 0.5;
-  for (let i=0;i<=GRID.chunk;i+=5){
-    const x = -half + i*GRID.tile;
-    verts.push(x,0.00015,-half, x,0.00015,half); // vertical major
-    const z = -half + i*GRID.tile;
-    verts.push(-half,0.00015,z, half,0.00015,z); // horizontal major
+  for (let i = 0; i <= GRID.chunk; i += 5) {
+    const x = -half + i * GRID.tile;
+    verts.push(x,0.00015,-half, x,0.00015,half);
+    const z = -half + i * GRID.tile;
+    verts.push(-half,0.00015,z, half,0.00015,z);
   }
-  major.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
-  const majorLines = new THREE.LineSegments(major, new THREE.LineBasicMaterial({ color:0x55606c, transparent:true, opacity:0.9 }));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
+  majorLines = new THREE.LineSegments(
+    g,
+    new THREE.LineBasicMaterial({ color:0x55606c, transparent:true, opacity:0.9 })
+  );
   scene.add(majorLines);
 
-  // Cursor cross (snapped)
   const crossG = new THREE.BufferGeometry();
   crossG.setAttribute('position', new THREE.Float32BufferAttribute([
     -0.4,0.001,0, 0.4,0.001,0,
-    0,0.001,-0.4, 0,0.001,0.4
+     0,0.001,-0.4, 0,0.001,0.4
   ],3));
   cursorCross = new THREE.LineSegments(crossG, new THREE.LineBasicMaterial({ color:0xff4444 }));
-  cursorCross.visible = true;
   scene.add(cursorCross);
 }
 
-// ================== Cursor snapping ==================
+/* ================== Cursor snapping ================== */
 renderer.domElement.addEventListener('pointermove', (e)=>{
   const ndc = new THREE.Vector2(
     (e.offsetX / renderer.domElement.clientWidth) * 2 - 1,
@@ -507,9 +479,8 @@ renderer.domElement.addEventListener('pointermove', (e)=>{
   }
 });
 
-// ================== Event Listeners ==================
+/* ================== Event listeners ================== */
 function setupEventListeners() {
-  // Panel Navigation
   document.getElementById('bottom-navbar').addEventListener('click', (e) => {
     if (e.target.matches('.nav-btn')) {
       const panelId = e.target.dataset.panel;
@@ -520,33 +491,27 @@ function setupEventListeners() {
     }
   });
 
-  // File Inputs
   modelInput.addEventListener('change', handleModelLoad);
   animationInput.addEventListener('change', handleAnimationLoad);
   textureInput.addEventListener('change', handleTextureLoad);
 
-  // Dashboard Buttons
   document.getElementById('export-glb-btn').addEventListener('click', openExportModal);
   document.getElementById('copy-data-btn').addEventListener('click', copyActiveModelData);
   document.getElementById('toggle-rig-btn').addEventListener('click', toggleRigVisibility);
 
-  // Animation Controls
   document.getElementById('load-anim-btn').addEventListener('click', () => animationInput.click());
   document.getElementById('remove-anim-btn').addEventListener('click', removeAnimation);
   document.getElementById('play-pause-btn').addEventListener('click', toggleAnimation);
   document.getElementById('rewind-btn').addEventListener('click', () => seekAnimation(-0.5));
   document.getElementById('forward-btn').addEventListener('click', () => seekAnimation(0.5));
 
-  // Export Modal
   document.getElementById('cancel-export-btn').addEventListener('click', () => document.getElementById('export-modal').classList.add('hidden'));
   document.getElementById('confirm-export-btn').addEventListener('click', exportGLB);
 
-  // Bone Connect Modal
   document.getElementById('bone-connect-target-model').addEventListener('change', populateBoneConnectBones);
   document.getElementById('cancel-bone-connect-btn').addEventListener('click', () => document.getElementById('bone-connect-modal').classList.add('hidden'));
   document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
 
-  // Grid controls
   tileSizeInput.addEventListener('change', ()=>{
     GRID.tile = Math.max(0.01, parseFloat(tileSizeInput.value)||1);
     buildGameGrid();
@@ -569,7 +534,7 @@ function setupEventListeners() {
   });
 }
 
-// ================== Model & Asset Handling ==================
+/* ================== Model handling ================== */
 function handleModelLoad(e){
   const files = e.target.files;
   if (!files.length) return;
@@ -592,7 +557,6 @@ function handleModelLoad(e){
             scene.add(skeletonHelper);
           }
 
-          // Ensure materials are PBR-friendly & cast/receive flags
           gltf.scene.traverse(o=>{
             if (o.isMesh){
               o.castShadow = true;
@@ -633,7 +597,6 @@ function handleModelLoad(e){
   }
   modelInput.value = '';
 }
-
 function frameObject(object){
   const box = new THREE.Box3().setFromObject(object);
   const size = box.getSize(new THREE.Vector3());
@@ -649,7 +612,7 @@ function frameObject(object){
   controls.update();
 }
 
-// ================== Grid utilities for active model ==================
+/* ================== Grid utilities for active model ================== */
 function getActiveScene(){
   const m = models[activeModelId];
   return m?.gltf?.scene || null;
@@ -662,7 +625,6 @@ function snapActiveToGrid(){
 }
 function placeActiveAtCursor(){
   const s = getActiveScene(); if (!s) return;
-  // Use last cursorCross position
   const p = cursorCross ? cursorCross.position : new THREE.Vector3(0,0,0);
   s.position.set(p.x, s.position.y, p.z);
 }
@@ -670,24 +632,21 @@ function stickActiveToGround(){
   const s = getActiveScene(); if (!s) return;
   const box = new THREE.Box3().setFromObject(s);
   const minY = box.min.y;
-  // Move so base sits at Y=0
-  s.position.y -= minY;
+  s.position.y -= minY; // base to Y=0
 }
 function fitActiveToTiles(tilesX=1, tilesZ=1){
   const s = getActiveScene(); if (!s) return;
-  // Compute current footprint in XZ
   const box = new THREE.Box3().setFromObject(s);
   const size = box.getSize(new THREE.Vector3());
   const targetX = tilesX * GRID.tile;
   const targetZ = tilesZ * GRID.tile;
   const scaleX = targetX / Math.max(1e-5, size.x);
   const scaleZ = targetZ / Math.max(1e-5, size.z);
-  // Uniform scale that fits inside the target footprint
   const k = Math.min(scaleX, scaleZ);
   s.scale.multiplyScalar(k);
 }
 
-// ================== Panel Update Functions ==================
+/* ================== Panels ================== */
 function updateAllPanels(){ updateDashboardPanel(); updateTransformPanel(); updateTabsPanel(); updateMeshPanel(); updateTexturePanel(); }
 
 function updateDashboardPanel() {
@@ -737,7 +696,6 @@ function updateDashboardPanel() {
     removeAnimBtn.disabled = true;
   }
 }
-
 function updateTransformPanel() {
   const wrapper = document.getElementById('transform-controls-wrapper');
   const model = models[activeModelId];
@@ -823,7 +781,6 @@ function updateTransformPanel() {
   wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToGrid);
   wrapper.querySelector('#stick-now-btn').addEventListener('click', stickActiveToGround);
 }
-
 function updateTabsPanel() {
   const container = document.getElementById('tabs-list');
   const ids = Object.keys(models);
@@ -849,7 +806,6 @@ function updateTabsPanel() {
   container.querySelectorAll('.activate-btn').forEach(btn => btn.addEventListener('click', e => setActiveModel(e.target.closest('.tab-card').dataset.id)));
   container.querySelectorAll('.close-btn').forEach(btn => btn.addEventListener('click', e => removeModel(e.target.closest('.tab-card').dataset.id)));
 }
-
 function updateMeshPanel() {
   const container = document.getElementById('mesh-panel-content');
   const model = models[activeModelId];
@@ -883,7 +839,6 @@ function updateMeshPanel() {
   container.querySelectorAll('.connect-bone-btn').forEach(btn => btn.addEventListener('click', e => openBoneConnectModal(e.target.closest('.list-item').dataset.uuid)));
   document.getElementById('multi-delete-mesh-btn').addEventListener('click', deleteSelectedMeshes);
 }
-
 function updateTexturePanel() {
   const container = document.getElementById('texture-panel-content');
   const model = models[activeModelId];
@@ -924,79 +879,73 @@ function updateTexturePanel() {
     else { alert('Please select a valid mesh.'); }
   }));
 }
-
 function updateMaterialControls(mesh) {
-    const wrapper = document.getElementById('material-controls-wrapper');
-    if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
-      wrapper.innerHTML = '<div class="status-text" style="padding:1rem 0; font-size: .9rem;">Selected mesh has no standard material properties to edit.</div>';
-      return;
+  const wrapper = document.getElementById('material-controls-wrapper');
+  if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
+    wrapper.innerHTML = '<div class="status-text" style="padding:1rem 0; font-size: .9rem;">Selected mesh has no standard material properties to edit.</div>';
+    return;
+  }
+  const mat = mesh.material;
+  wrapper.innerHTML = `
+  <div class="material-group">
+    <h4>Material Properties</h4>
+    <div class="slider-group-color" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
+      <label for="mat-color">Base Color</label>
+      <input type="color" id="mat-color" value="#${mat.color.getHexString()}">
+    </div>
+    <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
+      <label for="mat-metalness">Metalness</label>
+      <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
+      <span id="mat-metalness-val">${mat.metalness.toFixed(2)}</span>
+    </div>
+    <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
+      <label for="mat-roughness">Roughness</label>
+      <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
+      <span id="mat-roughness-val">${mat.roughness.toFixed(2)}</span>
+    </div>
+    <h4>Emissive</h4>
+    <div class="slider-group-color" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
+      <label for="mat-emissive">Color</label>
+      <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}">
+    </div>
+    <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
+      <label for="mat-emissive-intensity">Intensity</label>
+      <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
+      <span id="mat-emissive-intensity-val">${mat.emissiveIntensity.toFixed(2)}</span>
+    </div>
+  </div>`;
+  wrapper.addEventListener('input', (e) => {
+    const selectedMesh = scene.getObjectByProperty('uuid', document.getElementById('texture-mesh-select').value);
+    if (!selectedMesh || !selectedMesh.material) return;
+    const mat = selectedMesh.material;
+    const target = e.target;
+    switch (target.id) {
+      case 'mat-color': mat.color.set(target.value); break;
+      case 'mat-metalness': mat.metalness = parseFloat(target.value); document.getElementById('mat-metalness-val').textContent = mat.metalness.toFixed(2); break;
+      case 'mat-roughness': mat.roughness = parseFloat(target.value); document.getElementById('mat-roughness-val').textContent = mat.roughness.toFixed(2); break;
+      case 'mat-emissive': mat.emissive.set(target.value); break;
+      case 'mat-emissive-intensity': mat.emissiveIntensity = parseFloat(target.value); document.getElementById('mat-emissive-intensity-val').textContent = mat.emissiveIntensity.toFixed(2); break;
     }
-  
-    const mat = mesh.material;
-    wrapper.innerHTML = `
-    <div class="material-group">
-      <h4>Material Properties</h4>
-      <div class="slider-group-color" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
-        <label for="mat-color">Base Color</label>
-        <input type="color" id="mat-color" value="#${mat.color.getHexString()}">
-      </div>
-      <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-        <label for="mat-metalness">Metalness</label>
-        <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
-        <span id="mat-metalness-val">${mat.metalness.toFixed(2)}</span>
-      </div>
-      <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-        <label for="mat-roughness">Roughness</label>
-        <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
-        <span id="mat-roughness-val">${mat.roughness.toFixed(2)}</span>
-      </div>
-      <h4>Emissive</h4>
-      <div class="slider-group-color" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
-        <label for="mat-emissive">Color</label>
-        <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}">
-      </div>
-      <div class="slider-group-range" style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-        <label for="mat-emissive-intensity">Intensity</label>
-        <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
-        <span id="mat-emissive-intensity-val">${mat.emissiveIntensity.toFixed(2)}</span>
-      </div>
-    </div>`;
-
-    wrapper.addEventListener('input', (e) => {
-        const selectedMesh = scene.getObjectByProperty('uuid', document.getElementById('texture-mesh-select').value);
-        if (!selectedMesh || !selectedMesh.material) return;
-        const mat = selectedMesh.material;
-        const target = e.target;
-        
-        switch (target.id) {
-            case 'mat-color': mat.color.set(target.value); break;
-            case 'mat-metalness': mat.metalness = parseFloat(target.value); document.getElementById('mat-metalness-val').textContent = mat.metalness.toFixed(2); break;
-            case 'mat-roughness': mat.roughness = parseFloat(target.value); document.getElementById('mat-roughness-val').textContent = mat.roughness.toFixed(2); break;
-            case 'mat-emissive': mat.emissive.set(target.value); break;
-            case 'mat-emissive-intensity': mat.emissiveIntensity = parseFloat(target.value); document.getElementById('mat-emissive-intensity-val').textContent = mat.emissiveIntensity.toFixed(2); break;
-        }
-    });
+  });
 }
 
-// ================== Feature Implementation ==================
+/* ================== Features ================== */
 function copyActiveModelData() {
   const model = models[activeModelId]; if (!model) return;
   const { position, scale } = model.gltf.scene;
   const data = { position: position.toArray(), scale: scale.toArray() };
   navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(()=>alert('Model data copied.')).catch(()=>alert('Failed to copy.'));
 }
-
 function toggleRigVisibility() {
   const model = models[activeModelId];
   if (model && model.skeletonHelper) { model.skeletonHelper.visible = !model.skeletonHelper.visible; updateDashboardPanel(); }
 }
 
-// --- Animation ---
+/* --- Animation --- */
 function handleAnimationLoad(e) {
   const file = e.target.files[0];
   const model = models[activeModelId];
   if (!file || !model || !model.mixer) { alert("Select an active model with a skeleton first."); return; }
-
   const reader = new FileReader();
   reader.onload = ev => {
     gltfLoader.parse(ev.target.result, '', (gltf) => {
@@ -1015,13 +964,13 @@ function removeAnimation(){ const m = models[activeModelId]; if (m && m.animatio
 function toggleAnimation(){ const m = models[activeModelId]; if (!m || !m.animation) return; const a = m.animation.action; a.paused = !a.paused; if (!a.isRunning()) a.play(); updateDashboardPanel(); }
 function seekAnimation(seconds){ const m = models[activeModelId]; if (!m || !m.animation) return; m.animation.action.time = Math.max(0, m.animation.action.time + seconds); m.mixer.update(0); }
 
-// --- Meshes ---
+/* --- Meshes --- */
 function toggleMeshVisibility(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ mesh.visible = !mesh.visible; updateMeshPanel(); } }
 function renameMesh(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ const nn = prompt("Enter new mesh name:", mesh.name); if (nn){ mesh.name = nn; updateMeshPanel(); updateTexturePanel(); } } }
 function deleteMesh(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ mesh.parent.remove(mesh); mesh.geometry?.dispose?.(); if (Array.isArray(mesh.material)) mesh.material.forEach(m=>m?.dispose?.()); else mesh.material?.dispose?.(); updateMeshPanel(); updateTexturePanel(); } }
 function deleteSelectedMeshes(){ const checked = document.querySelectorAll('.mesh-select-checkbox:checked'); if (!checked.length) return alert("No meshes selected."); if (confirm(`Delete ${checked.length} mesh(es)?`)) checked.forEach(box=>deleteMesh(box.closest('.list-item').dataset.uuid)); }
 
-// --- Textures ---
+/* --- Textures --- */
 function handleTextureLoad(e) {
   const file = e.target.files[0]; if (!file || !textureTarget.mesh) return;
   const url = URL.createObjectURL(file);
@@ -1035,7 +984,7 @@ function handleTextureLoad(e) {
   textureInput.value = '';
 }
 
-// --- Bone Connection ---
+/* --- Bone Connection --- */
 function openBoneConnectModal(uuid) {
   meshToConnect = scene.getObjectByProperty('uuid', uuid);
   if (!meshToConnect) return;
@@ -1070,7 +1019,7 @@ function confirmBoneConnection(){
   else alert('Connection failed.');
 }
 
-// --- Exporting ---
+/* --- Exporting --- */
 function openExportModal() {
   if (!Object.keys(models).length) return alert("No models to export.");
   const select = document.getElementById('export-model-select');
@@ -1094,7 +1043,7 @@ function exportGLB() {
   document.getElementById('export-modal').classList.add('hidden');
 }
 
-// ================== Utils ==================
+/* ---------- Utils ---------- */
 function saveArrayBuffer(buffer, fileName) {
   const blob = new Blob([buffer], { type: 'model/gltf-binary' });
   const link = document.createElement('a');
@@ -1106,14 +1055,11 @@ function saveArrayBuffer(buffer, fileName) {
 function formatBytes(bytes, decimals=2){ if(bytes===0) return '0 Bytes'; const k=1024; const dm=decimals<0?0:decimals; const sizes=['Bytes','KB','MB','GB']; const i=Math.floor(Math.log(bytes)/Math.log(k)); return parseFloat((bytes/Math.pow(k,i)).toFixed(dm))+' '+sizes[i]; }
 function calculateModelStats(object){ let polygons=0, vertices=0; object.traverse(o=>{ if (o.isMesh && o.geometry && o.geometry.attributes?.position){ const g=o.geometry; polygons += g.index ? g.index.count/3 : g.attributes.position.count/3; vertices += g.attributes.position.count; } }); return {polygons, vertices}; }
 function hasSkeleton(object){ let v=false; object.traverse(o=>{ if (o.isSkinnedMesh || o.isBone) v=true; }); return v; }
-
-// Activate a model
 function removeModel(id) {
   const model = models[id];
   if (!model) return;
   scene.remove(model.gltf.scene);
   if (model.skeletonHelper) scene.remove(model.skeletonHelper);
-
   model.gltf.scene.traverse(obj => {
     if (obj.isMesh) {
       obj.geometry?.dispose?.();
@@ -1122,17 +1068,13 @@ function removeModel(id) {
     }
   });
   delete models[id];
-
   if (activeModelId === id) {
     const ids = Object.keys(models);
     setActiveModel(ids.length ? ids[0] : null);
   }
   updateAllPanels();
 }
-function setActiveModel(id) {
-  activeModelId = id;
-  updateAllPanels();
-}
+function setActiveModel(id) { activeModelId = id; updateAllPanels(); }
 </script>
 </body>
 </html>
