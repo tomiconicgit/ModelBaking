@@ -16,6 +16,7 @@
       {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
     ]
   }' />
+
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="3D Editor" />
@@ -24,122 +25,73 @@
   <style>
     :root {
       --bg:#101318; --panel-bg:#161a21;
-      --fg:#e6eef6; --fg-light:#8899aa; --fg-disabled: #556677;
-      --primary:#0099ff; --primary-light:#33aaff;
+      --fg:#e6eef6; --fg-light:#8899aa; --fg-disabled:#556677;
+      --primary:#0aa2ff; --primary-light:#33b3ff;
       --accent:#ff4757; --accent-light:#ff6b81;
-      --border-color:#2a2f36; --border-color-light: #4a4f56;
-      --viewer-height: 55vh;
+      --border-color:#2a2f36; --border-color-light:#4a4f56;
+      --viewer-height: clamp(260px, 55vh, 70vh);
     }
     html,body{height:100%;margin:0;overflow:hidden}
     body{
       background:var(--bg);color:var(--fg);
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;
-      font-size: 16px;
+      -webkit-font-smoothing:antialiased;font-size:16px;
     }
     #app{
-      display:flex; flex-direction:column;
-      height:100vh; height:100dvh;
+      display:flex;flex-direction:column;height:100vh;height:100dvh;
       padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
-    #viewer3d{height:var(--viewer-height); flex-shrink:0;}
+    #viewer3d{height:var(--viewer-height);flex-shrink:0;position:relative}
     #viewer3d canvas{display:block;width:100%;height:100%}
-    #panel-container{
-      flex-grow:1;
-      background:var(--panel-bg);
-      border-top:1px solid var(--border-color);
-      display:flex; flex-direction:column;
-      overflow:hidden;
-    }
-    #bottom-navbar{
-      display:flex; border-bottom:1px solid var(--border-color);
-      flex-shrink:0; overflow-x: auto;
-    }
-    .nav-btn{
-      padding:12px 16px; border:none; background:none; color:var(--fg-light);
-      cursor:pointer; font-size:0.9rem; font-weight:500;
-      border-bottom:2px solid transparent;
-      transition: color .2s, border-color .2s;
-      -webkit-tap-highlight-color: transparent;
-      white-space: nowrap;
-    }
-    .nav-btn:hover{color:var(--fg)}
-    .nav-btn.active{color:var(--primary); border-bottom-color:var(--primary)}
-    #panel-content{flex-grow:1; position:relative; overflow-y:auto;}
-    .panel{padding:1rem; min-height:100%;}
-    .panel.hidden{display:none}
-    .hidden{display:none !important;} /* utility used by JS */
-    .visually-hidden-input{position:fixed;left:-9999px;width:1px;height:1px;opacity:0;}
+    #panel-container{flex-grow:1;background:var(--panel-bg);border-top:1px solid var(--border-color);display:flex;flex-direction:column;overflow:hidden;}
+    #bottom-navbar{display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;overflow-x:auto;}
+    .nav-btn{padding:12px 16px;border:none;background:none;color:var(--fg-light);cursor:pointer;font-size:.9rem;font-weight:500;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+    .nav-btn:hover{color:var(--fg)} .nav-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+    #panel-content{flex-grow:1;position:relative;overflow-y:auto;}
+    .panel{padding:1rem;min-height:100%} .panel.hidden{display:none}
+    .hidden{display:none!important}
+    .visually-hidden-input{position:fixed;left:-9999px;width:1px;height:1px;opacity:0}
 
-    /* --- Common UI Elements --- */
-    .button{
-      background:var(--primary);color:#fff;border:none;border-radius:8px;
-      padding:10px 16px;font-size:.9rem;font-weight:500;cursor:pointer;transition:background-color .2s;-webkit-tap-highlight-color:transparent; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    }
-    .button:hover{background:var(--primary-light)}
-    .button:disabled{background:#333;color:#777;cursor:not-allowed}
+    .button{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:.9rem;font-weight:500;cursor:pointer;transition:background .2s;display:inline-flex;align-items:center;gap:8px}
+    .button:hover{background:var(--primary-light)} .button:disabled{background:#333;color:#777;cursor:not-allowed}
     .button.accent{background:var(--accent)} .button.accent:hover{background:var(--accent-light)}
     .button.ghost{background:transparent;border:1px solid var(--border-color);color:var(--fg)}
     .button.ghost:hover{background:var(--border-color)}
-    .button-group { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-    .status-text{text-align:center;color:var(--fg-light);padding:2rem 0; width:100%;}
+    .button-group{display:flex;flex-wrap:wrap;gap:.75rem}
+    .status-text{text-align:center;color:var(--fg-light);padding:2rem 0;width:100%}
     .form-group{margin-bottom:1rem}
-    .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; color: var(--fg-light); }
-    .form-group select, .form-group input {
-        width: 100%; background: #2a2f36; color: var(--fg); border: 1px solid var(--border-color);
-        border-radius: 6px; padding: 10px; font-size: 0.9rem; box-sizing: border-box;
-    }
+    .form-group label{display:block;margin-bottom:.5rem;font-size:.85rem;color:var(--fg-light)}
+    .form-group select,.form-group input{width:100%;background:#2a2f36;color:var(--fg);border:1px solid var(--border-color);border-radius:6px;padding:10px;font-size:.9rem;box-sizing:border-box}
 
-    /* --- Dashboard Panel --- */
-    #animation-controls-wrapper { border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem; }
-    #animation-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;}
-    #animation-timeline { width: 100%; display:flex; align-items:center; gap:0.5rem; margin-top: 1rem; }
-    #animation-timeline button { font-size: 1.2rem; padding: 4px 8px; }
-    #animation-status { font-size: 0.8rem; color: var(--fg-light); text-align: left; flex-grow: 1; }
+    #tabs-list{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill, minmax(280px,1fr))}
+    .tab-card{background:#1e222a;border:1px solid var(--border-color);border-radius:8px;padding:1rem}
+    .tab-card.active{border-color:var(--primary);box-shadow:0 0 10px rgba(0,153,255,.3)}
+    .tab-card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem}
+    .tab-card-header h3{margin:0;font-size:1rem;word-break:break-all}
+    .tab-card-info{font-size:.8rem;color:var(--fg-light);display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+    .tab-card-actions{margin-top:1rem;display:flex;gap:.5rem}
 
-    /* --- Tabs Panel --- */
-    #tabs-list { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-    .tab-card { background: #1e222a; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; }
-    .tab-card.active { border-color: var(--primary); box-shadow: 0 0 10px rgba(0,153,255,0.3); }
-    .tab-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
-    .tab-card-header h3 { margin: 0; font-size: 1rem; word-break: break-all; }
-    .tab-card-info { font-size: 0.8rem; color: var(--fg-light); display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
-    .tab-card-actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
+    .list-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;transition:background .2s}
+    .list-item:hover{background:#2a2f36}
+    .list-item-label{flex-grow:1}
+    .list-item-actions{display:flex;gap:5px}
+    .small-btn{padding:4px;background:none;border:1px solid var(--border-color-light);color:var(--fg-light);border-radius:4px;cursor:pointer;display:flex;align-items:center}
+    .small-btn:hover{background:var(--border-color-light);color:var(--fg)}
+    #texture-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1rem;margin-top:1rem}
+    .texture-slot{text-align:center} .texture-slot .button{width:100%;font-size:.8rem}
 
-    /* --- Mesh & Texture Panel --- */
-    .list-item {
-        display: flex; align-items: center; gap: 10px; padding: 8px;
-        border-radius: 6px; transition: background .2s;
-    }
-    .list-item:hover { background: #2a2f36; }
-    .list-item-label { flex-grow: 1; }
-    .list-item-actions { display: flex; gap: 5px; }
-    .small-btn { padding: 4px; background: none; border: 1px solid var(--border-color-light); color: var(--fg-light); border-radius: 4px; cursor: pointer; display:flex; align-items:center;}
-    .small-btn:hover { background: var(--border-color-light); color: var(--fg); }
-    #texture-grid {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem; margin-top: 1rem;
-    }
-    .texture-slot { text-align: center; }
-    .texture-slot .button { width: 100%; font-size: 0.8rem; }
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .modal-overlay.hidden{display:none}
+    .modal-content{background:var(--panel-bg);border:1px solid var(--border-color);border-radius:12px;width:clamp(300px,90vw,500px);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+    .modal-header{padding:1rem;border-bottom:1px solid var(--border-color);font-size:1.2rem;font-weight:500}
+    .modal-body{flex-grow:1;overflow-y:auto;padding:1rem}
+    .modal-footer{padding:1rem;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap}
 
-    /* --- Modal Styles --- */
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1000;
-    }
-    .modal-overlay.hidden { display: none; }
-    .modal-content {
-      background: var(--panel-bg);
-      border: 1px solid var(--border-color); border-radius: 12px;
-      width: clamp(300px, 90vw, 500px); max-height: 85vh;
-      display: flex; flex-direction: column;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
-    .modal-header { padding: 1rem; border-bottom: 1px solid var(--border-color); font-size: 1.2rem; font-weight: 500;}
-    .modal-body { flex-grow: 1; overflow-y: auto; padding: 1rem; }
-    .modal-footer { padding: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap;}
+    /* Tiny on-screen debugger */
+    #dbg{position:fixed;right:8px;bottom:8px;z-index:1200}
+    #dbg button{opacity:.6}
+    #dbglog{position:fixed;inset:auto 8px 48px auto;right:8px;bottom:48px;width:min(90vw,520px);max-height:40vh;overflow:auto;background:#000c;border:1px solid #333;padding:.5rem;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px;color:#9fe}
+    #dbglog.hidden{display:none}
   </style>
 
   <script type="importmap">
@@ -156,165 +108,201 @@
     <div id="viewer3d"></div>
 
     <div id="panel-container">
-        <nav id="bottom-navbar">
-            <button class="nav-btn active" data-panel="dashboard-panel">Dashboard</button>
-            <button class="nav-btn" data-panel="transform-panel">Transform</button>
-            <button class="nav-btn" data-panel="mesh-panel">Meshes</button>
-            <button class="nav-btn" data-panel="texture-panel">Textures</button>
-            <button class="nav-btn" data-panel="tabs-panel">Tabs</button>
-        </nav>
+      <nav id="bottom-navbar">
+        <button class="nav-btn active" data-panel="dashboard-panel">Dashboard</button>
+        <button class="nav-btn" data-panel="transform-panel">Transform</button>
+        <button class="nav-btn" data-panel="mesh-panel">Meshes</button>
+        <button class="nav-btn" data-panel="texture-panel">Textures</button>
+        <button class="nav-btn" data-panel="tabs-panel">Tabs</button>
+      </nav>
 
-        <div id="panel-content">
-            <div id="dashboard-panel" class="panel">
-                <div class="button-group">
-                    <!-- label triggers file input reliably on iOS/PWA -->
-                    <label id="load-model-btn" class="button" for="model-input">Load Model(s)</label>
-                    <button id="export-glb-btn" class="button" disabled>Export Active</button>
-                    <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
-                    <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
+      <div id="panel-content">
+        <div id="dashboard-panel" class="panel">
+          <div class="button-group">
+            <label id="load-model-btn" class="button" for="model-input">Load Model(s)</label>
+            <button id="export-glb-btn" class="button" disabled>Export Active</button>
+            <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
+            <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
+          </div>
+          <div id="animation-controls-wrapper">
+            <div id="animation-status" class="status-text">Load a model to begin.</div>
+            <div id="animation-controls-ui" class="hidden">
+              <div class="button-group">
+                <button id="load-anim-btn" class="button ghost">Load Animation</button>
+                <button id="remove-anim-btn" class="button accent" disabled>Remove Animation</button>
+              </div>
+              <div id="animation-timeline" class="hidden">
+                <button id="play-pause-btn" class="button">▶ Play</button>
+                <div id="playback-controls" class="hidden">
+                  <button id="rewind-btn" class="button ghost">−0.5s</button>
+                  <button id="forward-btn" class="button ghost">+0.5s</button>
                 </div>
-                <div id="animation-controls-wrapper">
-                    <div id="animation-status" class="status-text">Load a model to begin.</div>
-                    <div id="animation-controls-ui" class="hidden">
-                        <div class="button-group">
-                            <button id="load-anim-btn" class="button ghost">Load Animation</button>
-                            <button id="remove-anim-btn" class="button accent" disabled>Remove Animation</button>
-                        </div>
-                        <div id="animation-timeline" class="hidden">
-                            <button id="play-pause-btn" class="button">▶ Play</button>
-                            <div id="playback-controls" class="hidden">
-                                <button id="rewind-btn" class="button ghost">−0.5s</button>
-                                <button id="forward-btn" class="button ghost">+0.5s</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+              </div>
             </div>
-
-            <div id="transform-panel" class="panel hidden">
-                <div class="status-text">Transform controls for the active model will be implemented here.</div>
-            </div>
-
-            <div id="mesh-panel" class="panel hidden">
-                <div id="mesh-panel-content"></div>
-            </div>
-
-            <div id="texture-panel" class="panel hidden">
-                 <div id="texture-panel-content"></div>
-            </div>
-
-            <div id="tabs-panel" class="panel hidden">
-                <div id="tabs-list">
-                    <div class="status-text">No models loaded.</div>
-                </div>
-            </div>
+          </div>
         </div>
+
+        <div id="transform-panel" class="panel hidden">
+          <div class="status-text">Transform controls for the active model will be implemented here.</div>
+        </div>
+
+        <div id="mesh-panel" class="panel hidden">
+          <div id="mesh-panel-content"></div>
+        </div>
+
+        <div id="texture-panel" class="panel hidden">
+          <div id="texture-panel-content"></div>
+        </div>
+
+        <div id="tabs-panel" class="panel hidden">
+          <div id="tabs-list"><div class="status-text">No models loaded.</div></div>
+        </div>
+      </div>
     </div>
 
+    <!-- Export Modal -->
     <div id="export-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">Export Model</div>
-            <div class="modal-body">
-                <p>Select the model you wish to export. This will include all changes to its geometry, textures, and animations.</p>
-                <div class="form-group">
-                    <label for="export-model-select">Model to Export:</label>
-                    <select id="export-model-select"></select>
-                </div>
-                <div class="form-group">
-                    <label for="export-filename-input">New Filename (.glb):</label>
-                    <input id="export-filename-input" type="text" placeholder="e.g., my_edited_model">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="cancel-export-btn" class="button ghost">Cancel</button>
-                <button id="confirm-export-btn" class="button">Export</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">Export Model</div>
+        <div class="modal-body">
+          <p>Select the model you wish to export. This will include all changes to its geometry, textures, and animations.</p>
+          <div class="form-group">
+            <label for="export-model-select">Model to Export:</label>
+            <select id="export-model-select"></select>
+          </div>
+          <div class="form-group">
+            <label for="export-filename-input">New Filename (.glb):</label>
+            <input id="export-filename-input" type="text" placeholder="e.g., my_edited_model">
+          </div>
         </div>
+        <div class="modal-footer">
+          <button id="cancel-export-btn" class="button ghost">Cancel</button>
+          <button id="confirm-export-btn" class="button">Export</button>
+        </div>
+      </div>
     </div>
 
+    <!-- Bone Connect Modal -->
     <div id="bone-connect-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">Connect Mesh to Bone</div>
-            <div class="modal-body">
-                 <p>Parent the mesh <strong id="bone-connect-mesh-name"></strong> to a bone on another model's skeleton.</p>
-                 <div class="form-group">
-                    <label for="bone-connect-target-model">Target Model:</label>
-                    <select id="bone-connect-target-model"></select>
-                </div>
-                 <div class="form-group">
-                    <label for="bone-connect-target-bone">Target Bone:</label>
-                    <select id="bone-connect-target-bone"></select>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="cancel-bone-connect-btn" class="button ghost">Cancel</button>
-                <button id="confirm-bone-connect-btn" class="button">Connect</button>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">Connect Mesh to Bone</div>
+        <div class="modal-body">
+          <p>Parent the mesh <strong id="bone-connect-mesh-name"></strong> to a bone on another model's skeleton.</p>
+          <div class="form-group">
+            <label for="bone-connect-target-model">Target Model:</label>
+            <select id="bone-connect-target-model"></select>
+          </div>
+          <div class="form-group">
+            <label for="bone-connect-target-bone">Target Bone:</label>
+            <select id="bone-connect-target-bone"></select>
+          </div>
         </div>
+        <div class="modal-footer">
+          <button id="cancel-bone-connect-btn" class="button ghost">Cancel</button>
+          <button id="confirm-bone-connect-btn" class="button">Connect</button>
+        </div>
+      </div>
     </div>
 
-    <!-- Inputs: offscreen (not display:none) so labels can trigger them on iOS -->
-    <input type="file" id="model-input" accept=".glb" multiple class="visually-hidden-input" />
-    <input type="file" id="animation-input" accept=".glb" class="visually-hidden-input" />
+    <!-- Inputs (offscreen, not display:none) -->
+    <input type="file" id="model-input" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" multiple class="visually-hidden-input" />
+    <input type="file" id="animation-input" accept=".glb,.gltf" class="visually-hidden-input" />
     <input type="file" id="texture-input" accept="image/*" class="visually-hidden-input" />
   </div>
+
+  <!-- Tiny Debugger -->
+  <div id="dbg">
+    <button class="button ghost" id="toggle-log">Logs</button>
+  </div>
+  <pre id="dbglog" class="hidden"></pre>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-import { SkeletonHelper } from 'three/addons/helpers/SkeletonHelper.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// --- Global State ---
-let renderer, scene, camera, controls;
+// ---------- Mini logger ----------
+const logEl = document.getElementById('dbglog');
+const log = (...a)=>{ const s=a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); logEl.textContent += s + '\\n'; logEl.scrollTop=logEl.scrollHeight; console.log(...a); };
+window.addEventListener('error', e=>{ log('ERROR:', e.message || e); });
+window.addEventListener('unhandledrejection', e=>{ log('REJECTION:', (e.reason && e.reason.message)||String(e.reason)); });
+document.getElementById('toggle-log').addEventListener('click', ()=> logEl.classList.toggle('hidden'));
+
+// ---------- Global State ----------
+let renderer, scene, camera, controls, pmremGen, envTex;
 const clock = new THREE.Clock();
 const gltfLoader = new GLTFLoader();
+const draco = new DRACOLoader();
+draco.setDecoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/');
+gltfLoader.setDRACOLoader(draco);
+gltfLoader.setMeshoptDecoder(MeshoptDecoder);
 const textureLoader = new THREE.TextureLoader();
+
 const models = {}; // { id: { gltf, mixer, fileInfo, animation, skeletonHelper } }
 let activeModelId = null;
 let modelIdCounter = 0;
-// For texture assignment
-let textureTarget = { mesh: null, type: null };
-// For mesh-bone connection
+
+let textureTarget = { mesh:null, type:null };
 let meshToConnect = null;
 
-// --- DOM Elements ---
+// ---------- DOM ----------
 const viewerContainer = document.getElementById('viewer3d');
 const modelInput = document.getElementById('model-input');
 const animationInput = document.getElementById('animation-input');
 const textureInput = document.getElementById('texture-input');
 
-// --- Init ---
+// ---------- Init ----------
 init();
 updateAllPanels();
 
 // ================== Core 3D Setup ==================
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x222222);
-
-  camera = new THREE.PerspectiveCamera(50, viewerContainer.clientWidth / viewerContainer.clientHeight, 0.1, 1000);
-  camera.position.set(0, 1.5, 4);
-
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(viewerContainer.clientWidth, viewerContainer.clientHeight);
+  renderer.setSize(viewerContainer.clientWidth || window.innerWidth, viewerContainer.clientHeight || Math.round(window.innerHeight*0.55));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.setClearColor(0x101318, 1);
   viewerContainer.appendChild(renderer.domElement);
+
+  // Camera + controls
+  camera = new THREE.PerspectiveCamera(50, renderer.domElement.clientWidth/renderer.domElement.clientHeight, 0.1, 2000);
+  camera.position.set(0, 1.6, 4);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 1, 0);
   controls.enableDamping = true;
+  controls.minDistance = 0.1;
+  controls.maxDistance = 100;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 3));
-  // FIX: create the light, set position, then add it
-  const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
-  dirLight.position.set(5, 5, 5);
-  scene.add(dirLight);
+  // Environment lighting (visible + PBR env)
+  pmremGen = new THREE.PMREMGenerator(renderer);
+  envTex = pmremGen.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+  scene.background = new THREE.Color(0x101318);
 
-  scene.add(new THREE.GridHelper(20, 20, 0xcccccc, 0x777777));
+  // Lights + helpers
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+  hemi.position.set(0, 1, 0);
+  scene.add(hemi);
+
+  const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+  dir.position.set(5, 7, 6);
+  dir.castShadow = false;
+  scene.add(dir);
+
+  const grid = new THREE.GridHelper(20, 20, 0x3a3f46, 0x2a2f36);
+  grid.position.y = 0;
+  scene.add(grid);
+
+  const axes = new THREE.AxesHelper(0.5);
+  axes.position.set(-0.8, 0.01, -0.8);
+  scene.add(axes);
 
   setupEventListeners();
   animate();
@@ -323,664 +311,435 @@ function init() {
 function animate(){
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
-  Object.values(models).forEach(model => {
-      if (model.mixer) model.mixer.update(delta);
-  });
+  Object.values(models).forEach(m => m.mixer && m.mixer.update(delta));
   controls.update();
   renderer.render(scene, camera);
 }
 
 function onWindowResize(){
-    camera.aspect = viewerContainer.clientWidth / viewerContainer.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(viewerContainer.clientWidth, viewerContainer.clientHeight);
+  const w = viewerContainer.clientWidth || window.innerWidth;
+  const h = viewerContainer.clientHeight || Math.round(window.innerHeight*0.55);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
 }
+
+// React to container size changes (reliable in mobile PWAs)
+new ResizeObserver(onWindowResize).observe(viewerContainer);
+window.addEventListener('resize', onWindowResize);
+renderer.getContext().canvas.addEventListener('webglcontextlost', (e)=>{ e.preventDefault(); log('WebGL context lost'); });
 
 // ================== Event Listeners ==================
 function setupEventListeners() {
-    window.addEventListener('resize', onWindowResize);
+  // Panel Navigation
+  document.getElementById('bottom-navbar').addEventListener('click', (e) => {
+    if (e.target.matches('.nav-btn')) {
+      const panelId = e.target.dataset.panel;
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      e.target.classList.add('active');
+      document.querySelectorAll('#panel-content .panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById(panelId).classList.remove('hidden');
+    }
+  });
 
-    // Panel Navigation
-    document.getElementById('bottom-navbar').addEventListener('click', (e) => {
-        if (e.target.matches('.nav-btn')) {
-            const panelId = e.target.dataset.panel;
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            document.querySelectorAll('#panel-content .panel').forEach(p => p.classList.add('hidden'));
-            document.getElementById(panelId).classList.remove('hidden');
-        }
-    });
+  // File Inputs
+  modelInput.addEventListener('change', handleModelLoad);
+  animationInput.addEventListener('change', handleAnimationLoad);
+  textureInput.addEventListener('change', handleTextureLoad);
 
-    // File Inputs
-    modelInput.addEventListener('change', handleModelLoad);
-    animationInput.addEventListener('change', handleAnimationLoad);
-    textureInput.addEventListener('change', handleTextureLoad);
+  // Dashboard Buttons (Load uses <label>→input directly)
+  document.getElementById('export-glb-btn').addEventListener('click', openExportModal);
+  document.getElementById('copy-data-btn').addEventListener('click', copyActiveModelData);
+  document.getElementById('toggle-rig-btn').addEventListener('click', toggleRigVisibility);
 
-    // Dashboard Buttons (label#load-model-btn triggers input directly; no JS needed)
-    document.getElementById('export-glb-btn').addEventListener('click', openExportModal);
-    document.getElementById('copy-data-btn').addEventListener('click', copyActiveModelData);
-    document.getElementById('toggle-rig-btn').addEventListener('click', toggleRigVisibility);
+  // Animation Controls
+  document.getElementById('load-anim-btn').addEventListener('click', () => animationInput.click());
+  document.getElementById('remove-anim-btn').addEventListener('click', removeAnimation);
+  document.getElementById('play-pause-btn').addEventListener('click', toggleAnimation);
+  document.getElementById('rewind-btn').addEventListener('click', () => seekAnimation(-0.5));
+  document.getElementById('forward-btn').addEventListener('click', () => seekAnimation(0.5));
 
-    // Animation Controls
-    document.getElementById('load-anim-btn').addEventListener('click', () => animationInput.click());
-    document.getElementById('remove-anim-btn').addEventListener('click', removeAnimation);
-    document.getElementById('play-pause-btn').addEventListener('click', toggleAnimation);
-    document.getElementById('rewind-btn').addEventListener('click', () => seekAnimation(-0.5));
-    document.getElementById('forward-btn').addEventListener('click', () => seekAnimation(0.5));
+  // Export Modal
+  document.getElementById('cancel-export-btn').addEventListener('click', () => document.getElementById('export-modal').classList.add('hidden'));
+  document.getElementById('confirm-export-btn').addEventListener('click', exportGLB);
 
-    // Export Modal
-    document.getElementById('cancel-export-btn').addEventListener('click', () => document.getElementById('export-modal').classList.add('hidden'));
-    document.getElementById('confirm-export-btn').addEventListener('click', exportGLB);
-
-    // Bone Connect Modal
-    document.getElementById('bone-connect-target-model').addEventListener('change', populateBoneConnectBones);
-    document.getElementById('cancel-bone-connect-btn').addEventListener('click', () => document.getElementById('bone-connect-modal').classList.add('hidden'));
-    document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
+  // Bone Connect Modal
+  document.getElementById('bone-connect-target-model').addEventListener('change', populateBoneConnectBones);
+  document.getElementById('cancel-bone-connect-btn').addEventListener('click', () => document.getElementById('bone-connect-modal').classList.add('hidden'));
+  document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
 }
 
 // ================== Model & Asset Handling ==================
 function handleModelLoad(e){
   const files = e.target.files;
   if (!files.length) return;
-
   for (const file of files) {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        gltfLoader.parse(
-            ev.target.result,
-            '',
-            // Success callback
-            (gltf) => {
-                const id = `model-${modelIdCounter++}`;
-                const stats = calculateModelStats(gltf.scene);
-                const skeletonPresent = hasSkeleton(gltf.scene);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      log('Parsing:', file.name, file.size + ' bytes');
+      gltfLoader.parse(
+        ev.target.result,
+        '',
+        (gltf) => {
+          const id = `model-${modelIdCounter++}`;
+          const stats = calculateModelStats(gltf.scene);
+          const skeletonPresent = hasSkeleton(gltf.scene);
 
-                let skeletonHelper = null;
-                if (skeletonPresent) {
-                    skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
-                    skeletonHelper.visible = false;
-                    scene.add(skeletonHelper);
-                }
+          let skeletonHelper = null;
+          if (skeletonPresent) {
+            skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
+            skeletonHelper.visible = false;
+            scene.add(skeletonHelper);
+          }
 
-                models[id] = {
-                    gltf,
-                    mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
-                    animation: null, // For externally loaded animations
-                    skeletonHelper: skeletonHelper,
-                    fileInfo: {
-                        name: file.name,
-                        size: file.size,
-                        polygons: stats.polygons,
-                        vertices: stats.vertices,
-                    }
-                };
+          models[id] = {
+            gltf,
+            mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
+            animation: null,
+            skeletonHelper,
+            fileInfo: { name:file.name, size:file.size, polygons:stats.polygons, vertices:stats.vertices }
+          };
 
-                scene.add(gltf.scene);
+          scene.add(gltf.scene);
 
-                if (!activeModelId) {
-                    setActiveModel(id);
-                    // Frame the first loaded model
-                    const box = new THREE.Box3().setFromObject(gltf.scene);
-                    const size = box.getSize(new THREE.Vector3()).length();
-                    const center = box.getCenter(new THREE.Vector3());
-                    controls.reset();
-                    controls.target.copy(center);
-                    camera.position.copy(center).add(new THREE.Vector3(0, size * 0.5, size * 1.5));
-                    camera.lookAt(center);
-                }
-                updateAllPanels();
-            },
-            // Error callback
-            (error) => {
-                console.error('An error happened during GLTF parsing:', error);
-                alert(`Failed to load model "${file.name}". The file might be corrupt or in an unsupported format. Check the console for more details.`);
-            }
-        );
-      };
-      reader.readAsArrayBuffer(file);
+          if (!activeModelId) {
+            setActiveModel(id);
+            frameObject(gltf.scene);
+          }
+          updateAllPanels();
+          log('Loaded:', file.name, `P:${stats.polygons} V:${stats.vertices}`);
+        },
+        (error) => {
+          log('GLTF parse error:', error?.message || error);
+          alert(`Failed to load "${file.name}" (see Logs).`);
+        }
+      );
+    };
+    reader.readAsArrayBuffer(file);
   }
-  modelInput.value = ''; // Reset input
+  modelInput.value = '';
+}
+
+function frameObject(object){
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist = maxDim * 1.6;
+
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(0, dist*0.5, dist*1.1));
+  camera.near = Math.max(0.01, maxDim/1000);
+  camera.far = Math.max(1000, maxDim*20);
+  camera.updateProjectionMatrix();
+  controls.update();
 }
 
 function removeModel(id) {
-    const model = models[id];
-    if (!model) return;
+  const model = models[id];
+  if (!model) return;
+  scene.remove(model.gltf.scene);
+  if (model.skeletonHelper) scene.remove(model.skeletonHelper);
 
-    scene.remove(model.gltf.scene);
-    if (model.skeletonHelper) {
-        scene.remove(model.skeletonHelper);
+  model.gltf.scene.traverse(obj => {
+    if (obj.isMesh) {
+      obj.geometry?.dispose?.();
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m?.dispose?.());
+      else obj.material?.dispose?.();
     }
+  });
+  delete models[id];
 
-    // Deep cleanup
-    model.gltf.scene.traverse(obj => {
-        if (obj.isMesh) {
-            obj.geometry.dispose();
-            if (Array.isArray(obj.material)) {
-                obj.material.forEach(mat => mat.dispose());
-            } else if (obj.material) {
-                obj.material.dispose();
-            }
-        }
-    });
-
-    delete models[id];
-
-    if (activeModelId === id) {
-        const remainingIds = Object.keys(models);
-        setActiveModel(remainingIds.length > 0 ? remainingIds[0] : null);
-    }
-    updateAllPanels();
+  if (activeModelId === id) {
+    const ids = Object.keys(models);
+    setActiveModel(ids.length ? ids[0] : null);
+  }
+  updateAllPanels();
 }
 
 function setActiveModel(id) {
-    activeModelId = id;
-    console.log(`Active model set to: ${id}`);
-    updateAllPanels();
+  activeModelId = id;
+  updateAllPanels();
 }
 
 // ================== Panel Update Functions ==================
-function updateAllPanels() {
-    updateDashboardPanel();
-    updateTabsPanel();
-    updateMeshPanel();
-    updateTexturePanel();
-}
+function updateAllPanels(){ updateDashboardPanel(); updateTabsPanel(); updateMeshPanel(); updateTexturePanel(); }
 
 function updateDashboardPanel() {
-    const statusText = document.getElementById('animation-status');
-    const controlsUI = document.getElementById('animation-controls-ui');
-    const animTimeline = document.getElementById('animation-timeline');
-    const playbackControls = document.getElementById('playback-controls');
-    const removeAnimBtn = document.getElementById('remove-anim-btn');
-    const playPauseBtn = document.getElementById('play-pause-btn');
-    const toggleRigBtn = document.getElementById('toggle-rig-btn');
+  const statusText = document.getElementById('animation-status');
+  const controlsUI = document.getElementById('animation-controls-ui');
+  const animTimeline = document.getElementById('animation-timeline');
+  const playbackControls = document.getElementById('playback-controls');
+  const removeAnimBtn = document.getElementById('remove-anim-btn');
+  const playPauseBtn = document.getElementById('play-pause-btn');
+  const toggleRigBtn = document.getElementById('toggle-rig-btn');
 
-    document.getElementById('export-glb-btn').disabled = !activeModelId;
-    document.getElementById('copy-data-btn').disabled = !activeModelId;
+  document.getElementById('export-glb-btn').disabled = !activeModelId;
+  document.getElementById('copy-data-btn').disabled = !activeModelId;
 
-    const model = models[activeModelId];
-    if (!model) {
-        statusText.textContent = 'Load a model to begin.';
-        statusText.classList.remove('hidden');
-        controlsUI.classList.add('hidden');
-        toggleRigBtn.disabled = true;
-        return;
-    }
+  const model = models[activeModelId];
+  if (!model) {
+    statusText.textContent = 'Load a model to begin.';
+    statusText.classList.remove('hidden');
+    controlsUI.classList.add('hidden');
+    toggleRigBtn.disabled = true;
+    return;
+  }
 
-    // Rig visibility button
-    if (model.skeletonHelper) {
-        toggleRigBtn.disabled = false;
-        toggleRigBtn.textContent = model.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig';
+  if (model.skeletonHelper) {
+    toggleRigBtn.disabled = false;
+    toggleRigBtn.textContent = model.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig';
+  } else {
+    toggleRigBtn.disabled = true;
+  }
+
+  controlsUI.classList.remove('hidden');
+  statusText.classList.add('hidden');
+
+  if (model.animation) {
+    animTimeline.classList.remove('hidden');
+    removeAnimBtn.disabled = false;
+    const action = model.animation.action;
+    if (action.isRunning()) {
+      playPauseBtn.textContent = '❚❚ Pause';
+      playbackControls.classList.add('hidden');
     } else {
-        toggleRigBtn.disabled = true;
+      playPauseBtn.textContent = '▶ Play';
+      playbackControls.classList.remove('hidden');
     }
-
-    controlsUI.classList.remove('hidden');
-    statusText.classList.add('hidden');
-
-    if (model.animation) {
-        animTimeline.classList.remove('hidden');
-        removeAnimBtn.disabled = false;
-
-        const action = model.animation.action;
-        if (action.isRunning()) {
-            playPauseBtn.textContent = '❚❚ Pause';
-            playbackControls.classList.add('hidden');
-        } else {
-            playPauseBtn.textContent = '▶ Play';
-            playbackControls.classList.remove('hidden');
-        }
-    } else {
-        animTimeline.classList.add('hidden');
-        removeAnimBtn.disabled = true;
-    }
+  } else {
+    animTimeline.classList.add('hidden');
+    removeAnimBtn.disabled = true;
+  }
 }
 
 function updateTabsPanel() {
-    const container = document.getElementById('tabs-list');
-    const modelIds = Object.keys(models);
+  const container = document.getElementById('tabs-list');
+  const ids = Object.keys(models);
+  if (!ids.length) { container.innerHTML = '<div class="status-text">No models loaded.</div>'; return; }
 
-    if (modelIds.length === 0) {
-        container.innerHTML = '<div class="status-text">No models loaded.</div>';
-        return;
-    }
+  container.innerHTML = ids.map(id => {
+    const m = models[id]; const {name,size,polygons,vertices} = m.fileInfo; const isActive = id===activeModelId;
+    return `
+      <div class="tab-card ${isActive?'active':''}" data-id="${id}">
+        <div class="tab-card-header"><h3>${name}</h3></div>
+        <div class="tab-card-info">
+          <strong>Size:</strong><span>${formatBytes(size)}</span>
+          <strong>Polygons:</strong><span>${polygons.toLocaleString()}</span>
+          <strong>Vertices:</strong><span>${vertices.toLocaleString()}</span>
+        </div>
+        <div class="tab-card-actions">
+          <button class="button activate-btn" ${isActive?'disabled':''}>Activate</button>
+          <button class="button accent close-btn">Close</button>
+        </div>
+      </div>`;
+  }).join('');
 
-    container.innerHTML = modelIds.map(id => {
-        const model = models[id];
-        const { name, size, polygons, vertices } = model.fileInfo;
-        const isActive = id === activeModelId;
-        return `
-            <div class="tab-card ${isActive ? 'active' : ''}" data-id="${id}">
-                <div class="tab-card-header">
-                    <h3>${name}</h3>
-                </div>
-                <div class="tab-card-info">
-                    <strong>Size:</strong> <span>${formatBytes(size)}</span>
-                    <strong>Polygons:</strong> <span>${polygons.toLocaleString()}</span>
-                    <strong>Vertices:</strong> <span>${vertices.toLocaleString()}</span>
-                </div>
-                <div class="tab-card-actions">
-                    <button class="button activate-btn" ${isActive ? 'disabled' : ''}>Activate</button>
-                    <button class="button accent close-btn">Close</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.querySelectorAll('.activate-btn').forEach(btn => btn.addEventListener('click', (e) => setActiveModel(e.target.closest('.tab-card').dataset.id)));
-    container.querySelectorAll('.close-btn').forEach(btn => btn.addEventListener('click', (e) => removeModel(e.target.closest('.tab-card').dataset.id)));
+  container.querySelectorAll('.activate-btn').forEach(btn => btn.addEventListener('click', e => setActiveModel(e.target.closest('.tab-card').dataset.id)));
+  container.querySelectorAll('.close-btn').forEach(btn => btn.addEventListener('click', e => removeModel(e.target.closest('.tab-card').dataset.id)));
 }
 
 function updateMeshPanel() {
-    const container = document.getElementById('mesh-panel-content');
-    const model = models[activeModelId];
+  const container = document.getElementById('mesh-panel-content');
+  const model = models[activeModelId];
+  if (!model) { container.innerHTML = '<div class="status-text">Select an active model from the Tabs panel.</div>'; return; }
 
-    if (!model) {
-        container.innerHTML = '<div class="status-text">Select an active model from the Tabs panel.</div>';
-        return;
-    }
+  const meshes = [];
+  model.gltf.scene.traverse(obj => { if (obj.isMesh) meshes.push(obj); });
 
-    const meshes = [];
-    model.gltf.scene.traverse(obj => {
-        if (obj.isMesh) meshes.push(obj);
-    });
-
-    container.innerHTML = `
-        <div class="button-group" style="margin-bottom: 1rem;">
-            <button id="multi-delete-mesh-btn" class="button accent">Remove Selected</button>
+  container.innerHTML = `
+    <div class="button-group" style="margin-bottom:1rem;">
+      <button id="multi-delete-mesh-btn" class="button accent">Remove Selected</button>
+    </div>
+    <div id="mesh-list">
+      ${meshes.map(mesh => `
+        <div class="list-item" data-uuid="${mesh.uuid}">
+          <input type="checkbox" class="mesh-select-checkbox">
+          <span class="list-item-label">${mesh.name || '(no name)'}</span>
+          <div class="list-item-actions">
+            <button class="small-btn toggle-vis-btn" title="Toggle Visibility">${mesh.visible ? '👁️' : '⚪'}</button>
+            <button class="small-btn rename-mesh-btn" title="Rename">✏️</button>
+            <button class="small-btn connect-bone-btn" title="Connect to Bone">🔗</button>
+            <button class="small-btn delete-mesh-btn" title="Delete">🗑️</button>
+          </div>
         </div>
-        <div id="mesh-list">
-        ${meshes.map(mesh => `
-            <div class="list-item" data-uuid="${mesh.uuid}">
-                <input type="checkbox" class="mesh-select-checkbox">
-                <span class="list-item-label">${mesh.name || '(no name)'}</span>
-                <div class="list-item-actions">
-                    <button class="small-btn toggle-vis-btn" title="Toggle Visibility">${mesh.visible ? '👁️' : '⚪'}</button>
-                    <button class="small-btn rename-mesh-btn" title="Rename">✏️</button>
-                    <button class="small-btn connect-bone-btn" title="Connect to Bone">🔗</button>
-                    <button class="small-btn delete-mesh-btn" title="Delete">🗑️</button>
-                </div>
-            </div>
-        `).join('')}
-        </div>
-    `;
+      `).join('')}
+    </div>`;
 
-    // Add event listeners for mesh actions
-    container.querySelectorAll('.toggle-vis-btn').forEach(btn => btn.addEventListener('click', e => toggleMeshVisibility(e.target.closest('.list-item').dataset.uuid)));
-    container.querySelectorAll('.rename-mesh-btn').forEach(btn => btn.addEventListener('click', e => renameMesh(e.target.closest('.list-item').dataset.uuid)));
-    container.querySelectorAll('.delete-mesh-btn').forEach(btn => btn.addEventListener('click', e => deleteMesh(e.target.closest('.list-item').dataset.uuid)));
-    container.querySelectorAll('.connect-bone-btn').forEach(btn => btn.addEventListener('click', e => openBoneConnectModal(e.target.closest('.list-item').dataset.uuid)));
-    document.getElementById('multi-delete-mesh-btn').addEventListener('click', deleteSelectedMeshes);
+  container.querySelectorAll('.toggle-vis-btn').forEach(btn => btn.addEventListener('click', e => toggleMeshVisibility(e.target.closest('.list-item').dataset.uuid)));
+  container.querySelectorAll('.rename-mesh-btn').forEach(btn => btn.addEventListener('click', e => renameMesh(e.target.closest('.list-item').dataset.uuid)));
+  container.querySelectorAll('.delete-mesh-btn').forEach(btn => btn.addEventListener('click', e => deleteMesh(e.target.closest('.list-item').dataset.uuid)));
+  container.querySelectorAll('.connect-bone-btn').forEach(btn => btn.addEventListener('click', e => openBoneConnectModal(e.target.closest('.list-item').dataset.uuid)));
+  document.getElementById('multi-delete-mesh-btn').addEventListener('click', deleteSelectedMeshes);
 }
 
 function updateTexturePanel() {
-    const container = document.getElementById('texture-panel-content');
-    const model = models[activeModelId];
+  const container = document.getElementById('texture-panel-content');
+  const model = models[activeModelId];
+  if (!model) { container.innerHTML = '<div class="status-text">Select an active model from the Tabs panel.</div>'; return; }
 
-    if (!model) {
-        container.innerHTML = '<div class="status-text">Select an active model from the Tabs panel.</div>';
-        return;
-    }
+  const meshes = [];
+  model.gltf.scene.traverse(obj => { if (obj.isMesh) meshes.push(obj); });
 
-    const meshes = [];
-    model.gltf.scene.traverse(obj => { if (obj.isMesh) meshes.push(obj); });
+  const textureTypes = [
+    { key: 'map', name: 'Albedo' }, { key: 'normalMap', name: 'Normal' },
+    { key: 'metalnessMap', name: 'Metalness' }, { key: 'roughnessMap', name: 'Roughness' },
+    { key: 'aoMap', name: 'AO' }, { key: 'emissiveMap', name: 'Emissive' }
+  ];
 
-    const textureTypes = [
-        { key: 'map', name: 'Albedo' }, { key: 'normalMap', name: 'Normal' },
-        { key: 'metalnessMap', name: 'Metalness' }, { key: 'roughnessMap', name: 'Roughness' },
-        { key: 'aoMap', name: 'AO' }, { key: 'emissiveMap', name: 'Emissive' }
-    ];
-
-    container.innerHTML = `
-        <div class="form-group">
-            <label for="texture-mesh-select">Target Mesh:</label>
-            <select id="texture-mesh-select">
-                ${meshes.map(m => `<option value="${m.uuid}">${m.name || m.uuid}</option>`).join('')}
-            </select>
+  container.innerHTML = `
+    <div class="form-group">
+      <label for="texture-mesh-select">Target Mesh:</label>
+      <select id="texture-mesh-select">
+        ${meshes.map(m => `<option value="${m.uuid}">${m.name || m.uuid}</option>`).join('')}
+      </select>
+    </div>
+    <div id="texture-grid">
+      ${textureTypes.map(t => `
+        <div class="texture-slot">
+          <button class="button ghost upload-texture-btn" data-type="${t.key}">${t.name}</button>
         </div>
-        <div id="texture-grid">
-            ${textureTypes.map(t => `
-                <div class="texture-slot">
-                    <button class="button ghost upload-texture-btn" data-type="${t.key}">${t.name}</button>
-                </div>
-            `).join('')}
-        </div>
-    `;
+      `).join('')}
+    </div>`;
 
-    container.querySelectorAll('.upload-texture-btn').forEach(btn => btn.addEventListener('click', e => {
-        const meshUUID = document.getElementById('texture-mesh-select').value;
-        const mesh = scene.getObjectByProperty('uuid', meshUUID);
-        if (mesh) {
-            textureTarget = { mesh, type: e.target.dataset.type };
-            textureInput.click();
-        } else {
-            alert('Please select a valid mesh.');
-        }
-    }));
+  container.querySelectorAll('.upload-texture-btn').forEach(btn => btn.addEventListener('click', e => {
+    const meshUUID = document.getElementById('texture-mesh-select').value;
+    const mesh = scene.getObjectByProperty('uuid', meshUUID);
+    if (mesh) { textureTarget = { mesh, type: e.target.dataset.type }; textureInput.click(); }
+    else { alert('Please select a valid mesh.'); }
+  }));
 }
 
 // ================== Feature Implementation ==================
-
-// --- Dashboard ---
 function copyActiveModelData() {
-    const model = models[activeModelId];
-    if (!model) return;
-    const { position, scale } = model.gltf.scene;
-
-    // Find first skinned mesh to report bone connection if any
-    let parentInfo = "Scene Root";
-    model.gltf.scene.traverse(obj => {
-        if (obj.isSkinnedMesh && obj.skeleton && obj.skeleton.bones.length > 0) {
-            parentInfo = `Skinned mesh with ${obj.skeleton.bones.length} bones.`;
-        }
-    });
-
-    const data = {
-        position: position.toArray(),
-        scale: scale.toArray(),
-        parentInfo
-    };
-
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2))
-        .then(() => alert('Model data copied to clipboard.'))
-        .catch(() => alert('Failed to copy data.'));
+  const model = models[activeModelId]; if (!model) return;
+  const { position, scale } = model.gltf.scene;
+  let parentInfo = "Scene Root";
+  model.gltf.scene.traverse(obj => { if (obj.isSkinnedMesh && obj.skeleton && obj.skeleton.bones.length) parentInfo = `Skinned mesh with ${obj.skeleton.bones.length} bones.`; });
+  const data = { position: position.toArray(), scale: scale.toArray(), parentInfo };
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(()=>alert('Model data copied.')).catch(()=>alert('Failed to copy.'));
 }
 
 function toggleRigVisibility() {
-    const model = models[activeModelId];
-    if (model && model.skeletonHelper) {
-        model.skeletonHelper.visible = !model.skeletonHelper.visible;
-        updateDashboardPanel();
-    }
+  const model = models[activeModelId];
+  if (model && model.skeletonHelper) { model.skeletonHelper.visible = !model.skeletonHelper.visible; updateDashboardPanel(); }
 }
 
 // --- Animation ---
 function handleAnimationLoad(e) {
-    const file = e.target.files[0];
-    const model = models[activeModelId];
-    if (!file || !model || !model.mixer) {
-        alert("Please select an active model with a skeleton first.");
-        return;
-    }
+  const file = e.target.files[0];
+  const model = models[activeModelId];
+  if (!file || !model || !model.mixer) { alert("Select an active model with a skeleton first."); return; }
 
-    const reader = new FileReader();
-    reader.onload = ev => {
-        gltfLoader.parse(ev.target.result, '', (gltf) => {
-            if (!gltf.animations.length) {
-                alert('This GLB file contains no animations.');
-                return;
-            }
-            removeAnimation(); // Clear previous animation
-            const clip = gltf.animations[0];
-            const action = model.mixer.clipAction(clip);
-            model.animation = { clip, action };
-            updateDashboardPanel();
-        });
-    };
-    reader.readAsArrayBuffer(file);
-    animationInput.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    gltfLoader.parse(ev.target.result, '', (gltf) => {
+      if (!gltf.animations.length) { alert('This file has no animations.'); return; }
+      removeAnimation();
+      const clip = gltf.animations[0];
+      const action = model.mixer.clipAction(clip);
+      model.animation = { clip, action };
+      updateDashboardPanel();
+    }, (err)=>{ log('Anim parse error:', err?.message || err); alert('Animation load failed.'); });
+  };
+  reader.readAsArrayBuffer(file);
+  animationInput.value = '';
 }
-
-function removeAnimation() {
-    const model = models[activeModelId];
-    if (model && model.animation) {
-        model.mixer.stopAllAction();
-        model.mixer.uncacheClip(model.animation.clip);
-        model.animation = null;
-        updateDashboardPanel();
-    }
-}
-
-function toggleAnimation() {
-    const model = models[activeModelId];
-    if (!model || !model.animation) return;
-
-    const action = model.animation.action;
-    if (action.isRunning()) {
-        action.paused = true;
-    } else {
-        action.paused = false;
-        if (!action.isRunning()) action.play();
-    }
-    updateDashboardPanel();
-}
-
-function seekAnimation(seconds) {
-    const model = models[activeModelId];
-    if (!model || !model.animation) return;
-
-    const action = model.animation.action;
-    action.time = Math.max(0, action.time + seconds);
-    model.mixer.update(0); // Force immediate update
-}
+function removeAnimation(){ const m = models[activeModelId]; if (m && m.animation){ m.mixer.stopAllAction(); m.mixer.uncacheClip(m.animation.clip); m.animation = null; updateDashboardPanel(); } }
+function toggleAnimation(){ const m = models[activeModelId]; if (!m || !m.animation) return; const a = m.animation.action; a.paused = !a.paused; if (!a.isRunning()) a.play(); updateDashboardPanel(); }
+function seekAnimation(seconds){ const m = models[activeModelId]; if (!m || !m.animation) return; m.animation.action.time = Math.max(0, m.animation.action.time + seconds); m.mixer.update(0); }
 
 // --- Meshes ---
-function toggleMeshVisibility(uuid) {
-    const mesh = scene.getObjectByProperty('uuid', uuid);
-    if (mesh) {
-        mesh.visible = !mesh.visible;
-        updateMeshPanel();
-    }
-}
-
-function renameMesh(uuid) {
-    const mesh = scene.getObjectByProperty('uuid', uuid);
-    if (mesh) {
-        const newName = prompt("Enter new mesh name:", mesh.name);
-        if (newName) {
-            mesh.name = newName;
-            updateMeshPanel();
-            updateTexturePanel(); // Also update texture dropdown
-        }
-    }
-}
-
-function deleteMesh(uuid) {
-    const mesh = scene.getObjectByProperty('uuid', uuid);
-    if (mesh) {
-        mesh.parent.remove(mesh);
-        // Full cleanup
-        mesh.geometry?.dispose?.();
-        if (Array.isArray(mesh.material)) {
-            mesh.material.forEach(m => m?.dispose?.());
-        } else if (mesh.material) {
-            mesh.material.dispose();
-        }
-        updateMeshPanel();
-        updateTexturePanel();
-    }
-}
-
-function deleteSelectedMeshes() {
-    const checked = document.querySelectorAll('.mesh-select-checkbox:checked');
-    if (checked.length === 0) {
-        alert("No meshes selected.");
-        return;
-    }
-    if (confirm(`Are you sure you want to delete ${checked.length} mesh(es)?`)) {
-        checked.forEach(box => deleteMesh(box.closest('.list-item').dataset.uuid));
-    }
-}
+function toggleMeshVisibility(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ mesh.visible = !mesh.visible; updateMeshPanel(); } }
+function renameMesh(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ const nn = prompt("Enter new mesh name:", mesh.name); if (nn){ mesh.name = nn; updateMeshPanel(); updateTexturePanel(); } } }
+function deleteMesh(uuid){ const mesh = scene.getObjectByProperty('uuid', uuid); if (mesh){ mesh.parent.remove(mesh); mesh.geometry?.dispose?.(); if (Array.isArray(mesh.material)) mesh.material.forEach(m=>m?.dispose?.()); else mesh.material?.dispose?.(); updateMeshPanel(); updateTexturePanel(); } }
+function deleteSelectedMeshes(){ const checked = document.querySelectorAll('.mesh-select-checkbox:checked'); if (!checked.length) return alert("No meshes selected."); if (confirm(`Delete ${checked.length} mesh(es)?`)) checked.forEach(box=>deleteMesh(box.closest('.list-item').dataset.uuid)); }
 
 // --- Textures ---
 function handleTextureLoad(e) {
-    const file = e.target.files[0];
-    if (!file || !textureTarget.mesh) return;
-
-    const url = URL.createObjectURL(file);
-    textureLoader.load(url, (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.flipY = false;
-
-        const { mesh, type } = textureTarget;
-        if (!mesh.material || !mesh.material.isMeshStandardMaterial) {
-            alert('Cannot apply PBR texture. Target mesh does not have a standard material.');
-            URL.revokeObjectURL(url);
-            return;
-        }
-
-        mesh.material[type] = texture;
-        mesh.material.needsUpdate = true;
-
-        alert(`Texture applied to ${type} slot.`);
-        URL.revokeObjectURL(url);
-    });
-    textureInput.value = '';
+  const file = e.target.files[0]; if (!file || !textureTarget.mesh) return;
+  const url = URL.createObjectURL(file);
+  textureLoader.load(url, (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = false;
+    const { mesh, type } = textureTarget;
+    if (!mesh.material || !mesh.material.isMeshStandardMaterial) { alert('Target mesh is not a standard material.'); URL.revokeObjectURL(url); return; }
+    mesh.material[type] = texture; mesh.material.needsUpdate = true;
+    alert(`Applied ${type}.`); URL.revokeObjectURL(url);
+  });
+  textureInput.value = '';
 }
 
 // --- Bone Connection ---
 function openBoneConnectModal(uuid) {
-    meshToConnect = scene.getObjectByProperty('uuid', uuid);
-    if (!meshToConnect) return;
+  meshToConnect = scene.getObjectByProperty('uuid', uuid);
+  if (!meshToConnect) return;
 
-    const modal = document.getElementById('bone-connect-modal');
-    document.getElementById('bone-connect-mesh-name').textContent = `"${meshToConnect.name || '(unnamed)'}"`;
-    const targetModelSelect = document.getElementById('bone-connect-target-model');
+  const modal = document.getElementById('bone-connect-modal');
+  document.getElementById('bone-connect-mesh-name').textContent = `"${meshToConnect.name || '(unnamed)'}"`;
+  const targetModelSelect = document.getElementById('bone-connect-target-model');
 
-    // FIX: proper skeleton presence detection
-    const otherModels = Object.entries(models).filter(([id, model]) => {
-        if (id === activeModelId) return false;
-        let hasSkel = false;
-        model.gltf.scene.traverse(o => { if (o.isSkinnedMesh || o.isBone) hasSkel = true; });
-        return hasSkel;
-    });
+  const otherModels = Object.entries(models).filter(([id, model]) => {
+    if (id === activeModelId) return false;
+    let hasSkel = false; model.gltf.scene.traverse(o => { if (o.isSkinnedMesh || o.isBone) hasSkel = true; });
+    return hasSkel;
+  });
 
-    if(otherModels.length === 0) {
-        alert("No other models with skeletons available to connect to.");
-        return;
-    }
+  if (!otherModels.length) return alert("No other models with skeletons available.");
 
-    targetModelSelect.innerHTML = otherModels.map(([id, model]) =>
-         `<option value="${id}">${model.fileInfo.name}</option>`
-    ).join('');
-
-    populateBoneConnectBones();
-    modal.classList.remove('hidden');
+  targetModelSelect.innerHTML = otherModels.map(([id, model]) => `<option value="${id}">${model.fileInfo.name}</option>`).join('');
+  populateBoneConnectBones();
+  modal.classList.remove('hidden');
 }
-
-function populateBoneConnectBones() {
-    const targetModelId = document.getElementById('bone-connect-target-model').value;
-    const targetModel = models[targetModelId];
-    if(!targetModel) return;
-
-    const bones = [];
-    targetModel.gltf.scene.traverse(obj => { if(obj.isBone) bones.push(obj); });
-
-    const targetBoneSelect = document.getElementById('bone-connect-target-bone');
-    targetBoneSelect.innerHTML = bones.map(bone => `<option value="${bone.uuid}">${bone.name || bone.uuid}</option>`).join('');
+function populateBoneConnectBones(){
+  const targetModelId = document.getElementById('bone-connect-target-model').value;
+  const targetModel = models[targetModelId]; if (!targetModel) return;
+  const bones = []; targetModel.gltf.scene.traverse(o => { if (o.isBone) bones.push(o); });
+  const sel = document.getElementById('bone-connect-target-bone');
+  sel.innerHTML = bones.map(b => `<option value="${b.uuid}">${b.name || b.uuid}</option>`).join('');
 }
-
-function confirmBoneConnection() {
-    const targetBoneUUID = document.getElementById('bone-connect-target-bone').value;
-    const targetBone = scene.getObjectByProperty('uuid', targetBoneUUID);
-
-    if (meshToConnect && targetBone) {
-        targetBone.attach(meshToConnect); // attach() preserves world transform
-        alert(`Mesh "${meshToConnect.name || '(unnamed)'}" connected to bone "${targetBone.name || targetBone.uuid}".`);
-        document.getElementById('bone-connect-modal').classList.add('hidden');
-        updateMeshPanel();
-    } else {
-        alert("Connection failed. Could not find target mesh or bone.");
-    }
+function confirmBoneConnection(){
+  const boneUUID = document.getElementById('bone-connect-target-bone').value;
+  const bone = scene.getObjectByProperty('uuid', boneUUID);
+  if (meshToConnect && bone) { bone.attach(meshToConnect); alert(`Connected "${meshToConnect.name || '(unnamed)'}" → "${bone.name || bone.uuid}"`); document.getElementById('bone-connect-modal').classList.add('hidden'); updateMeshPanel(); }
+  else alert('Connection failed.');
 }
 
 // --- Exporting ---
 function openExportModal() {
-    if (Object.keys(models).length === 0) {
-        alert("No models to export.");
-        return;
-    }
-    const select = document.getElementById('export-model-select');
-    select.innerHTML = Object.entries(models).map(([id, model]) =>
-        `<option value="${id}">${model.fileInfo.name}</option>`
-    ).join('');
-
-    select.value = activeModelId; // Default to active model
-    const currentName = models[select.value].fileInfo.name.replace(/\.glb$/i, '');
-    document.getElementById('export-filename-input').value = `${currentName}_edited`;
-
-    document.getElementById('export-modal').classList.remove('hidden');
+  if (!Object.keys(models).length) return alert("No models to export.");
+  const select = document.getElementById('export-model-select');
+  select.innerHTML = Object.entries(models).map(([id, m]) => `<option value="${id}">${m.fileInfo.name}</option>`).join('');
+  select.value = activeModelId || select.options[0].value;
+  const currentName = models[select.value].fileInfo.name.replace(/\.glb$/i,'');
+  document.getElementById('export-filename-input').value = `${currentName}_edited`;
+  document.getElementById('export-modal').classList.remove('hidden');
 }
-
 function exportGLB() {
-    const modelId = document.getElementById('export-model-select').value;
-    const modelToExport = models[modelId];
-    let filename = document.getElementById('export-filename-input').value.trim();
+  const id = document.getElementById('export-model-select').value;
+  const m = models[id];
+  let filename = document.getElementById('export-filename-input').value.trim();
+  if (!m) return alert("Selected model not found.");
+  if (!filename) return alert("Provide a filename.");
+  if (!/\.glb$/i.test(filename)) filename += '.glb';
 
-    if (!modelToExport) {
-        alert("Selected model not found.");
-        return;
-    }
-    if (!filename) {
-        alert("Please provide a filename.");
-        return;
-    }
-    if (!/\.glb$/i.test(filename)) {
-        filename += '.glb';
-    }
-
-    const exporter = new GLTFExporter();
-    const options = {
-        binary: true,
-        animations: modelToExport.animation ? [modelToExport.animation.clip] : modelToExport.gltf.animations
-    };
-
-    exporter.parse(modelToExport.gltf.scene, (result) => {
-        saveArrayBuffer(result, filename);
-        document.getElementById('export-modal').classList.add('hidden');
-    }, (error) => {
-        console.error('An error occurred during export:', error);
-        alert('Export failed. Check the console for details.');
-    }, options);
+  const exporter = new GLTFExporter();
+  const options = { binary:true, animations: m.animation ? [m.animation.clip] : m.gltf.animations };
+  exporter.parse(m.gltf.scene, (result) => saveArrayBuffer(result, filename), (error) => { log('Export error:', error); alert('Export failed.'); }, options);
+  document.getElementById('export-modal').classList.add('hidden');
 }
 
-// ================== Utility Functions ==================
+// ================== Utils ==================
 function saveArrayBuffer(buffer, fileName) {
-    const blob = new Blob([buffer], { type: 'application/octet-stream' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+  const blob = new Blob([buffer], { type: 'model/gltf-binary' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 }
-
-function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-function calculateModelStats(object) {
-    let polygons = 0, vertices = 0;
-    object.traverse(obj => {
-        if (obj.isMesh && obj.geometry && obj.geometry.attributes?.position) {
-            const geom = obj.geometry;
-            if (geom.index) {
-                polygons += geom.index.count / 3;
-            } else {
-                polygons += geom.attributes.position.count / 3;
-            }
-            vertices += geom.attributes.position.count;
-        }
-    });
-    return { polygons, vertices };
-}
-
-function hasSkeleton(object) {
-    let hasSkel = false;
-    object.traverse(obj => {
-        if (obj.isSkinnedMesh || obj.isBone) {
-            hasSkel = true;
-        }
-    });
-    return hasSkel;
-}
-
+function formatBytes(bytes, decimals=2){ if(bytes===0) return '0 Bytes'; const k=1024; const dm=decimals<0?0:decimals; const sizes=['Bytes','KB','MB','GB']; const i=Math.floor(Math.log(bytes)/Math.log(k)); return parseFloat((bytes/Math.pow(k,i)).toFixed(dm))+' '+sizes[i]; }
+function calculateModelStats(object){ let polygons=0, vertices=0; object.traverse(o=>{ if (o.isMesh && o.geometry && o.geometry.attributes?.position){ const g=o.geometry; polygons += g.index ? g.index.count/3 : g.attributes.position.count/3; vertices += g.attributes.position.count; } }); return {polygons, vertices}; }
+function hasSkeleton(object){ let v=false; object.traverse(o=>{ if (o.isSkinnedMesh || o.isBone) v=true; }); return v; }
 </script>
 </body>
 </html>
