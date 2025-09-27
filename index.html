@@ -158,17 +158,17 @@
           <div class="form-row">
             <div class="form-group">
               <label>Tile Size (units)</label>
-              <input id="grid-tile-size"  type="number" value="10" min="0.01" step="0.01">
+              <input id="grid-tile-size"  type="number" value="1" min="0.01" step="0.01">
             </div>
             <div class="form-group">
               <label>Chunk Size (tiles per side)</label>
-              <input id="grid-chunk-size" type="number" value="5" min="1" step="1">
+              <input id="grid-chunk-size" type="number" value="50" min="1" step="1">
             </div>
             <div class="form-group">
               <label>Snap Mode</label>
               <select id="grid-snap-mode">
-                <option value="centers" selected>Tile Centers (…,-20,-10,0,10,…)</option>
-                <option value="edges">Tile Edges (…,-5,5,15,…)</option>
+                <option value="centers" selected>Tile Centers (...,-24.5,-23.5,...)</option>
+                <option value="edges">Tile Edges (...,-25,-24,-23,...)</option>
               </select>
             </div>
           </div>
@@ -195,7 +195,7 @@
             <button id="stick-ground-btn" class="button ghost">Stick Active to Ground (Y=0)</button>
           </div>
 
-          <p class="status-text" style="padding-top:1rem">Grid-only view. 1 tile = 10 world units. Centers at multiples of 10.</p>
+          <p class="status-text" style="padding-top:1rem">Grid-only view. 1 tile = 1 world unit. Centers are at half units like the game.</p>
         </div>
 
         <div id="transform-panel" class="panel hidden">
@@ -288,20 +288,24 @@ document.getElementById('toggle-log').addEventListener('click', ()=> logEl.class
 
 /* ---------- Grid config (MATCHES GAME) ---------- */
 const GRID = {
-  tile: 10,      // = TILE_SIZE in your game
-  chunk: 5,      // tiles per side (one 50×50 world-units chunk)
-  snapMode: 'centers' // centers at …,-20,-10,0,10,…
+  tile: 1,        // = TILE_SIZE in your game (1 unit per tile)
+  chunk: 50,      // tiles per side (50×50 chunk)
+  snapMode: 'centers' // centers at ..., -24.5, -23.5, ..., +24.5
 };
 const hud = document.getElementById('hud');
 
-// centers => n*t ; edges => n*t + t/2
+// centers => round((v - 0.5*t)/t)*t + 0.5*t
+// edges   => round(v/t)*t
 function snapCoord(v){
   const t = GRID.tile;
-  return GRID.snapMode === 'edges'
-    ? Math.round((v - t*0.5)/t)*t + t*0.5
-    : Math.round(v/t)*t;
+  const offset = GRID.snapMode === 'centers' ? (0.5 * t) : 0.0;
+  return Math.round((v - offset)/t)*t + offset;
 }
-function tileIndexFromWorld(v){ return Math.round(v / GRID.tile); }
+// Match game getTileAt(): off = TILES_PER_CHUNK/2 - 0.5
+function tileIndexFromWorld(v){
+  const off = GRID.chunk * 0.5 - 0.5; // 24.5 for 50×50
+  return Math.round((v / GRID.tile) + off);
+}
 function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
@@ -372,7 +376,7 @@ function init() {
   camera.position.set(0, 8, 12);
 
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 0, 0);
+  controls.target.set(0.5, 0, 0.5); // aim near the true center tile
   controls.enableDamping = true;
   controls.minDistance = 1;
   controls.maxDistance = 200;
@@ -423,8 +427,8 @@ function clearGrid(){
 function buildGameGrid(){
   clearGrid();
 
-  const size = GRID.chunk * GRID.tile;     // 5 * 10 = 50 world units (one game chunk)
-  const divisions = GRID.chunk;            // 5×5 tiles
+  const size = GRID.chunk * GRID.tile;     // 50 * 1 = 50 world units (one game chunk)
+  const divisions = GRID.chunk;            // 50×50 tiles
 
   gridHelper = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x2a2f36);
   gridHelper.material.transparent = true;
@@ -446,11 +450,12 @@ function buildGameGrid(){
   );
   scene.add(majorLines);
 
-  // Cursor cross (snapped)
+  // Cursor cross (snapped) ~ tile-sized
+  const L = GRID.tile * 0.8;
   const crossG = new THREE.BufferGeometry();
   crossG.setAttribute('position', new THREE.Float32BufferAttribute([
-    -4,0.001,0, 4,0.001,0,
-     0,0.001,-4, 0,0.001,4
+    -L/2,0.001,0,  L/2,0.001,0,
+     0,0.001,-L/2, 0,0.001,L/2
   ],3));
   cursorCross = new THREE.LineSegments(crossG, new THREE.LineBasicMaterial({ color:0xff4444 }));
   scene.add(cursorCross);
@@ -506,11 +511,11 @@ function setupEventListeners() {
   document.getElementById('confirm-bone-connect-btn').addEventListener('click', confirmBoneConnection);
 
   tileSizeInput.addEventListener('change', ()=>{
-    GRID.tile = Math.max(0.01, parseFloat(tileSizeInput.value)||10);
+    GRID.tile = Math.max(0.01, parseFloat(tileSizeInput.value)||1);
     buildGameGrid();
   });
   chunkSizeInput.addEventListener('change', ()=>{
-    GRID.chunk = Math.max(1, parseInt(chunkSizeInput.value)||5);
+    GRID.chunk = Math.max(1, parseInt(chunkSizeInput.value)||50);
     buildGameGrid();
   });
   snapModeSelect.addEventListener('change', ()=>{ GRID.snapMode = snapModeSelect.value; });
@@ -518,6 +523,13 @@ function setupEventListeners() {
 
   // Center-tile snap buttons
   snapActiveBtn.addEventListener('click', snapActiveToCenterTile);
+  placeAtCursorBtn.addEventListener('click', placeActiveAtCursor);
+  stickGroundBtn.addEventListener('click', stickActiveToGround);
+  fitBtn.addEventListener('click', ()=>{
+    const tx = Math.max(0.1, parseFloat(fitXInput.value)||1);
+    const tz = Math.max(0.1, parseFloat(fitZInput.value)||1);
+    fitActiveToTiles(tx, tz);
+  });
 }
 
 /* ================== Model handling ================== */
@@ -590,7 +602,8 @@ function frameObject(object){
   const maxDim = Math.max(size.x, size.y, size.z);
   const dist = Math.max(4, maxDim * 2);
 
-  controls.target.set(center.x, 0, center.z);
+  // focus roughly on true tile center
+  controls.target.set(center.x || 0.5, 0, center.z || 0.5);
   camera.position.set(center.x + dist*0.35, dist*0.7, center.z + dist*0.9);
   camera.near = 0.01;
   camera.far = 5000;
@@ -603,14 +616,15 @@ function getActiveScene(){
   const m = models[activeModelId];
   return m?.gltf?.scene || null;
 }
-// NEW: Snap ONLY position X/Z to the center tile (0,0). Keep scale & rotation.
+// Snap ONLY X/Z to the center of the "center tile" (0.5, 0.5). Keep scale & rotation.
 function snapActiveToCenterTile(){
   const s = getActiveScene(); if (!s) return;
-  s.position.set(0, s.position.y, 0);
+  const c = 0.5 * GRID.tile; // 0.5 for TILE_SIZE=1
+  s.position.set(c, s.position.y, c);
 }
 function placeActiveAtCursor(){
   const s = getActiveScene(); if (!s) return;
-  const p = cursorCross ? cursorCross.position : new THREE.Vector3(0,0,0);
+  const p = cursorCross ? cursorCross.position : new THREE.Vector3(0.5*GRID.tile,0,0.5*GRID.tile);
   s.position.set(p.x, s.position.y, p.z);
 }
 function stickActiveToGround(){
