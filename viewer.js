@@ -48,6 +48,18 @@ let __initialized = false;
 /* -------------------------------------------------------
    Init (idempotent)
 ------------------------------------------------------- */
+// This module self-initializes on first import from bootstrap.js
+(async function() {
+  if (document.readyState === 'loading') {
+    await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+  }
+  await initViewer();
+})();
+
+
+/* -------------------------------------------------------
+   Init (idempotent)
+------------------------------------------------------- */
 export async function initViewer() {
   if (__initialized) return;
 
@@ -82,7 +94,7 @@ export async function initViewer() {
   );
   camera.position.set(0, 8, 12);
 
-  // Controls (aim at half-tile center for “game feel”)
+  // Controls (aim at half-tile center for âgame feelâ)
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0.5, 0, 0.5);
   controls.enableDamping = true;
@@ -135,7 +147,7 @@ export async function initViewer() {
 }
 
 /* -------------------------------------------------------
-   Grid / floor (solid color + tile lines) — matches game
+   Grid / floor (solid color + tile lines) â matches game
 ------------------------------------------------------- */
 function clearGrid(){
   const { scene } = App;
@@ -150,7 +162,7 @@ export function buildFloorAndGrid(){
   const { scene, GRID } = App;
 
   const size = GRID.chunk * GRID.tile;      // e.g., 50 units
-  const divisions = GRID.chunk;             // 50×50 grid
+  const divisions = GRID.chunk;             // 50Ã50 grid
   const half = size * 0.5;
 
   // Solid floor (lets you see objects that sink below Y=0)
@@ -212,14 +224,14 @@ function snapCoord(v){
   return Math.round((v - offset)/t)*t + offset;
 }
 function tileIndexFromWorld(v){
-  const off = App.GRID.chunk * 0.5 - 0.5; // e.g., 24.5 for 50×50
+  const off = App.GRID.chunk * 0.5 - 0.5; // e.g., 24.5 for 50Ã50
   return Math.round((v / App.GRID.tile) + off);
 }
 function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
@@ -418,7 +430,7 @@ App.stickActiveToGround = function stickActiveToGround(){
 App.fitActiveToTiles = function fitActiveToTiles(tilesX=1, tilesZ=1){
   const s = App.getActiveScene(); if (!s) return;
   const box = new THREE.Box3().setFromObject(s);
-  const size = box.getSize(new THREE.Vector3>());
+  const size = box.getSize(new THREE.Vector3());
   const targetX = tilesX * App.GRID.tile;
   const targetZ = tilesZ * App.GRID.tile;
   const scaleX = targetX / Math.max(1e-5, size.x);
