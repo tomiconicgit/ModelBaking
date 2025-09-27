@@ -256,11 +256,6 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
   anchor.add(gltf.scene);
   App.scene.add(anchor);
 
-  // Set a default scale for game asset consistency.
-  // This matches the scale used for tool models in the game code.
-  const gameScale = 0.17139666515204327;
-  gltf.scene.scale.set(gameScale, gameScale, gameScale);
-
   gltf.scene.traverse(o=>{
     if (o.isMesh){
       o.castShadow = true;
