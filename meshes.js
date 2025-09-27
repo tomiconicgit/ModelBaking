@@ -92,7 +92,6 @@ export function mountMeshes(refreshOnly = false) {
       }
     }));
 
-    // --- START: ADDED CODE ---
     list.querySelectorAll('.btn-connect').forEach(b => b.addEventListener('click', e => {
       const mesh = find(e);
       if (!mesh) return;
@@ -112,13 +111,13 @@ export function mountMeshes(refreshOnly = false) {
       }
 
       const modal = document.getElementById('bone-connect-modal');
-      const meshNameEl = document.getElementById('bone-connect-mesh-name');
+      const objectNameEl = document.getElementById('bone-connect-object-name');
       const modelSelect = document.getElementById('bone-connect-target-model');
       const boneSelect = document.getElementById('bone-connect-target-bone');
       const confirmBtn = document.getElementById('confirm-bone-connect-btn');
       const cancelBtn = document.getElementById('cancel-bone-connect-btn');
 
-      meshNameEl.textContent = mesh.name || '(unnamed mesh)';
+      objectNameEl.textContent = `"${mesh.name || '(unnamed mesh)'}"`;
       modelSelect.innerHTML = otherModels.map(([id, m]) => `<option value="${id}">${m.fileInfo.name}</option>`).join('');
 
       function populateBones() {
@@ -155,7 +154,6 @@ export function mountMeshes(refreshOnly = false) {
       populateBones();
       modal.classList.remove('hidden');
     }));
-    // --- END: ADDED CODE ---
 
     list.querySelectorAll('.mesh-card').forEach(card => {
         const slider = card.querySelector('.simplify-slider');
