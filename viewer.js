@@ -186,7 +186,8 @@ export function buildFloorAndGrid(){
   App.floorMesh = floor;
 
   // Fine grid (every tile)
-  const grid = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x2a2f36);
+  // The second color was too dark to see. It's now brighter and visible.
+  const grid = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x444B52);
   grid.material.transparent = true;
   grid.material.opacity = 0.95;
   grid.position.y = 0.0001;                // prevent z-fighting with floor
