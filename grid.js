@@ -26,7 +26,7 @@ export function mountGrid(refreshOnly = false) {
       </div>
     `;
 
-    // Fit 1×1 tiles to your game grid size
+    // Fit 1x1 tiles, which corresponds to the game's TILE_SIZE of 1 world unit.
     document.getElementById('fit-tiles-btn').addEventListener('click', () => {
       App.fitActiveToTiles(1, 1);
       // scale changed -> reflect in transform panel
