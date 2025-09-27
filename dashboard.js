@@ -1,3 +1,4 @@
+// dashboard.js
 import { App, formatBytes } from './viewer.js';
 import './export.js'; // registers modal handlers
 
@@ -15,9 +16,9 @@ export function mountDashboard(refreshOnly=false){
       <div id="anim-ui" class="hidden" style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
         <h4 class="panel-title" style="margin-bottom:16px; text-align:center;">Animation Controls</h4>
         <div class="button-group" style="justify-content:center;">
-            <button id="rewind-btn" class="button ghost">« 0.5s</button>
-            <button id="play-pause-btn" class="button">▶ Play</button>
-            <button id="forward-btn" class="button ghost">+0.5s »</button>
+            <button id="rewind-btn" class="button ghost">Â« 0.5s</button>
+            <button id="play-pause-btn" class="button">â¶ Play</button>
+            <button id="forward-btn" class="button ghost">+0.5s Â»</button>
         </div>
         <div class="button-group" style="margin-top: 12px;">
             <button id="remove-anim-btn" class="button accent" style="width:100%" disabled>Remove Animation</button>
@@ -46,7 +47,8 @@ export function mountDashboard(refreshOnly=false){
 
     document.getElementById('copy-data-btn').addEventListener('click', ()=>{
       const m = App.models[App.activeModelId]; if (!m) return;
-      const s = m.gltf.scene; const data = { position: s.position.toArray(), scale: s.scale.toArray() };
+      const s = m.anchor; // FIX: Target the anchor, not the internal scene
+      const data = { position: s.position.toArray(), scale: s.scale.toArray() };
       navigator.clipboard.writeText(JSON.stringify(data,null,2)).then(()=>alert('Model transform data copied.'));
     });
 
@@ -86,7 +88,7 @@ export function mountDashboard(refreshOnly=false){
       animUI.classList.remove('hidden');
       const playBtn = document.getElementById('play-pause-btn');
       const isPlaying = m.animation.action.isRunning() && !m.animation.action.paused;
-      playBtn.textContent = isPlaying ? '❚❚ Pause' : '▶ Play';
+      playBtn.textContent = isPlaying ? 'ââ Pause' : 'â¶ Play';
       document.getElementById('remove-anim-btn').disabled = false;
     } else {
       animUI.classList.add('hidden');
