@@ -1,3 +1,4 @@
+// transform.js
 import * as THREE from 'three';
 import { App } from './viewer.js';
 
@@ -15,14 +16,14 @@ export function mountTransform(refreshOnly=false){
     const wrap = document.getElementById('transform-controls-wrapper');
     if (!m){ wrap.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model to see transform controls.</div>'; return; }
 
-    const s = m.gltf.scene;
+    const s = m.anchor; // FIX: Target the anchor, not the internal scene
     const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
     const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
       <div class="slider-row" data-row="${id}" data-step="${step}" data-min="${min}" data-max="${max}" data-decimals="${decimals}">
         <label>${label}</label>
         <input type="number" class="num" value="${val}" step="${step}">
-        <button class="nudge" data-dir="-1">−</button>
+        <button class="nudge" data-dir="-1">â</button>
         <button class="nudge" data-dir="1">+</button>
         <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step/10}">
       </div>`;
@@ -69,7 +70,7 @@ export function mountTransform(refreshOnly=false){
       }
 
       const apply = (val, source)=>{
-        const scn = App.models[App.activeModelId]?.gltf.scene; if (!scn) return;
+        const scn = App.models[App.activeModelId]?.anchor; if (!scn) return; // FIX: Target the anchor
         let clampedVal = clamp(val, id);
         
         if (source !== 'num') { num.value = clampedVal.toFixed(decimals); }
