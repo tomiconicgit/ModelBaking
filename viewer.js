@@ -21,8 +21,18 @@ export const App = {
   hud: document.getElementById('hud'),
   viewerEl: document.getElementById('viewer3d'),
 
-  /* Grid (matches your game) */
-  GRID: { tile: 1, chunk: 50, snapMode: 'centers' },
+  /* Grid (synced with game's worldengine.js) */
+  GRID: {
+    // Corresponds to TILE_SIZE in the game, which is 1 world unit.
+    tile: 1,
+
+    // Corresponds to CHUNK_SIZE, defining the visual grid area.
+    chunk: 50,
+
+    // Snaps the cursor and models to the center of a tile (e.g., at world pos 0.5 for tile 0).
+    snapMode: 'centers'
+  },
+
 
   /* Visual grid/floor objects */
   gridHelper: null,
@@ -94,7 +104,7 @@ export async function initViewer() {
   );
   camera.position.set(0, 8, 12);
 
-  // Controls (aim at half-tile center for âgame feelâ)
+  // Controls (aim at half-tile center for “game feel”)
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0.5, 0, 0.5);
   controls.enableDamping = true;
@@ -147,7 +157,7 @@ export async function initViewer() {
 }
 
 /* -------------------------------------------------------
-   Grid / floor (solid color + tile lines) â matches game
+   Grid / floor (solid color + tile lines) — matches game
 ------------------------------------------------------- */
 function clearGrid(){
   const { scene } = App;
@@ -162,7 +172,7 @@ export function buildFloorAndGrid(){
   const { scene, GRID } = App;
 
   const size = GRID.chunk * GRID.tile;      // e.g., 50 units
-  const divisions = GRID.chunk;             // 50Ã50 grid
+  const divisions = GRID.chunk;             // 50×50 grid
   const half = size * 0.5;
 
   // Solid floor (lets you see objects that sink below Y=0)
@@ -224,14 +234,14 @@ function snapCoord(v){
   return Math.round((v - offset)/t)*t + offset;
 }
 function tileIndexFromWorld(v){
-  const off = App.GRID.chunk * 0.5 - 0.5; // e.g., 24.5 for 50Ã50
+  const off = App.GRID.chunk * 0.5 - 0.5; // e.g., 24.5 for 50×50
   return Math.round((v / App.GRID.tile) + off);
 }
 function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
