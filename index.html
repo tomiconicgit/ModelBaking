@@ -99,6 +99,20 @@
     #dbg button{opacity:.6}
     #dbglog{position:fixed;inset:auto 8px 48px auto;right:8px;bottom:48px;width:min(90vw,520px);max-height:40vh;overflow:auto;background:#000c;border:1px solid #333;padding:.5rem;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;font-size:12px;color:#9fe}
     #dbglog.hidden{display:none}
+
+    /* Slider rows with nudge buttons */
+    .slider-row{
+      display:grid;
+      grid-template-columns:28px 24px 1fr 90px 24px;
+      gap:.6rem; align-items:center; margin-bottom:.5rem;
+    }
+    .slider-row label{
+      text-align:center; font-weight:600; color:var(--fg-light);
+    }
+    .slider-row input[type="range"]{ width:100%; }
+    .nudge{height:28px;width:24px;border:1px solid var(--border-color-light);background:#1c2128;color:var(--fg);border-radius:6px;cursor:pointer}
+    .nudge:active{transform:translateY(1px)}
+    .num{width:100%;background:#2a2f36;color:var(--fg);border:1px solid var(--border-color);border-radius:6px;padding:8px 8px;font-size:.9rem;box-sizing:border-box}
   </style>
 
   <script type="importmap">
@@ -521,7 +535,7 @@ function setupEventListeners() {
   snapModeSelect.addEventListener('change', ()=>{ GRID.snapMode = snapModeSelect.value; });
   rebuildGridBtn.addEventListener('click', buildGameGrid);
 
-  // Center-tile snap buttons
+  // Grid helpers
   snapActiveBtn.addEventListener('click', snapActiveToCenterTile);
   placeAtCursorBtn.addEventListener('click', placeActiveAtCursor);
   stickGroundBtn.addEventListener('click', stickActiveToGround);
@@ -602,7 +616,6 @@ function frameObject(object){
   const maxDim = Math.max(size.x, size.y, size.z);
   const dist = Math.max(4, maxDim * 2);
 
-  // focus roughly on true tile center
   controls.target.set(center.x || 0.5, 0, center.z || 0.5);
   camera.position.set(center.x + dist*0.35, dist*0.7, center.z + dist*0.9);
   camera.near = 0.01;
@@ -616,7 +629,6 @@ function getActiveScene(){
   const m = models[activeModelId];
   return m?.gltf?.scene || null;
 }
-// Snap ONLY X/Z to the center of the "center tile" (0.5, 0.5). Keep scale & rotation.
 function snapActiveToCenterTile(){
   const s = getActiveScene(); if (!s) return;
   const c = 0.5 * GRID.tile; // 0.5 for TILE_SIZE=1
@@ -695,6 +707,9 @@ function updateDashboardPanel() {
     removeAnimBtn.disabled = true;
   }
 }
+
+let uniformBaselineScale = null; // captured when building the panel
+
 function updateTransformPanel() {
   const wrapper = document.getElementById('transform-controls-wrapper');
   const model = models[activeModelId];
@@ -705,75 +720,128 @@ function updateTransformPanel() {
   }
 
   const s = model.gltf.scene;
+  uniformBaselineScale = s.scale.clone(); // baseline for uniform scale factor
+
   const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
-  const createSliderGroup = (axis, value, min, max, step) => `
-    <div class="slider-group" style="display:grid;grid-template-columns:20px 1fr 80px;gap:.75rem;align-items:center;margin-bottom:.5rem;">
-      <label style="text-align:center;margin:0;">${axis.toUpperCase()}</label>
-      <input type="range" data-axis="${axis}" value="${value}" min="${min}" max="${max}" step="${step}">
-      <input type="number" data-axis="${axis}" value="${value}" step="${step}">
+  const sliderRow = (id, label, value, min, max, step, decimals=2) => `
+    <div class="slider-row" data-row="${id}" data-step="${step}" data-min="${min}" data-max="${max}" data-decimals="${decimals}">
+      <label>${label}</label>
+      <button class="nudge" data-dir="-1">−</button>
+      <input type="range" class="rng" value="${value}" min="${min}" max="${max}" step="${step}">
+      <input type="number" class="num" value="${value}" step="${step}">
+      <button class="nudge" data-dir="1">+</button>
     </div>`;
 
   wrapper.innerHTML = `
     <div class="transform-group">
       <h4>Position</h4>
       <div id="transform-pos">
-        ${createSliderGroup('x', s.position.x.toFixed(2), -250, 250, 0.01)}
-        ${createSliderGroup('y', s.position.y.toFixed(2), -50, 50, 0.01)}
-        ${createSliderGroup('z', s.position.z.toFixed(2), -250, 250, 0.01)}
+        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -250, 250, 0.01, 2)}
+        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -50,  50,  0.01, 2)}
+        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -250, 250, 0.01, 2)}
       </div>
       <div class="button-group" style="margin-top:.5rem;">
         <button id="snap-now-btn" class="button">Snap to Center Tile</button>
         <button id="stick-now-btn" class="button ghost">Stick to Ground</button>
       </div>
     </div>
+
     <div class="transform-group">
       <h4>Rotation (Degrees)</h4>
       <div id="transform-rot">
-        ${createSliderGroup('x', THREE.MathUtils.radToDeg(euler.x).toFixed(1), -180, 180, 0.5)}
-        ${createSliderGroup('y', THREE.MathUtils.radToDeg(euler.y).toFixed(1), -180, 180, 0.5)}
-        ${createSliderGroup('z', THREE.MathUtils.radToDeg(euler.z).toFixed(1), -180, 180, 0.5)}
+        ${sliderRow('rot-x','X', THREE.MathUtils.radToDeg(euler.x).toFixed(1), -180, 180, 0.5, 1)}
+        ${sliderRow('rot-y','Y', THREE.MathUtils.radToDeg(euler.y).toFixed(1), -180, 180, 0.5, 1)}
+        ${sliderRow('rot-z','Z', THREE.MathUtils.radToDeg(euler.z).toFixed(1), -180, 180, 0.5, 1)}
       </div>
     </div>
+
     <div class="transform-group">
-      <h4>Scale</h4>
+      <h4>Scale (per-axis)</h4>
       <div id="transform-scale">
-        ${createSliderGroup('x', s.scale.x.toFixed(3), 0.01, 50, 0.001)}
-        ${createSliderGroup('y', s.scale.y.toFixed(3), 0.01, 50, 0.001)}
-        ${createSliderGroup('z', s.scale.z.toFixed(3), 0.01, 50, 0.001)}
+        ${sliderRow('scl-x','X', s.scale.x.toFixed(3), 0.01, 50, 0.001, 3)}
+        ${sliderRow('scl-y','Y', s.scale.y.toFixed(3), 0.01, 50, 0.001, 3)}
+        ${sliderRow('scl-z','Z', s.scale.z.toFixed(3), 0.01, 50, 0.001, 3)}
       </div>
-    </div>`;
+    </div>
 
-  wrapper.querySelectorAll('#transform-pos, #transform-rot, #transform-scale').forEach(group => {
-    group.addEventListener('input', (e) => {
-      const target = e.target;
-      const axis = target.dataset.axis;
-      let value = parseFloat(target.value);
-      if (isNaN(value)) return;
+    <div class="transform-group">
+      <h4>Uniform Scale (keeps shape)</h4>
+      <div id="uniform-scale">
+        ${sliderRow('uni','U', '1.00', 0.01, 50, 0.01, 2)}
+        <div style="font-size:.85rem;color:var(--fg-light);margin-top:.25rem;">Factor × baseline (current shape). 1.00 = no change.</div>
+      </div>
+    </div>
+  `;
 
-      const inputs = group.querySelectorAll(`[data-axis="${axis}"]`);
-      inputs.forEach(input => { if (input !== target) input.value = value; });
+  // Utility
+  const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
+  const setNumValue = (el,val,dec=2)=>{ el.value = Number(val).toFixed(dec); };
 
-      const modelScene = models[activeModelId]?.gltf.scene;
-      if (!modelScene) return;
+  // Bind all rows (pos/rot/scale/uni)
+  wrapper.querySelectorAll('.slider-row').forEach(row=>{
+    const rng = row.querySelector('.rng');
+    const num = row.querySelector('.num');
+    const id  = row.dataset.row;
+    const step = parseFloat(row.dataset.step);
+    const min = parseFloat(row.dataset.min);
+    const max = parseFloat(row.dataset.max);
+    const decimals = parseInt(row.dataset.decimals||2);
 
-      const getValues = (g) => ({
-        x: parseFloat(g.querySelector('[data-axis="x"]').value),
-        y: parseFloat(g.querySelector('[data-axis="y"]').value),
-        z: parseFloat(g.querySelector('[data-axis="z"]').value)
-      });
+    const apply = (val)=>{
+      val = clamp(val, min, max);
+      rng.value = val;
+      setNumValue(num, val, decimals);
 
-      if (group.id === 'transform-pos') {
-        const {x,y,z} = getValues(group); modelScene.position.set(x, y, z);
-      } else if (group.id === 'transform-scale') {
-        const {x,y,z} = getValues(group); modelScene.scale.set(x, y, z);
-      } else if (group.id === 'transform-rot') {
-        const {x,y,z} = getValues(group);
-        const euler = new THREE.Euler(
-          THREE.MathUtils.degToRad(x), THREE.MathUtils.degToRad(y), THREE.MathUtils.degToRad(z), 'YXZ'
-        );
-        modelScene.quaternion.setFromEuler(euler);
+      const scn = models[activeModelId]?.gltf.scene; if (!scn) return;
+
+      if (id.startsWith('pos-')){
+        const p = scn.position.clone();
+        if (id==='pos-x') p.x = val; else if (id==='pos-y') p.y = val; else p.z = val;
+        scn.position.copy(p);
+      } else if (id.startsWith('rot-')){
+        const cur = new THREE.Euler().setFromQuaternion(scn.quaternion, 'YXZ');
+        const rx = id==='rot-x' ? THREE.MathUtils.degToRad(val) : cur.x;
+        const ry = id==='rot-y' ? THREE.MathUtils.degToRad(val) : cur.y;
+        const rz = id==='rot-z' ? THREE.MathUtils.degToRad(val) : cur.z;
+        scn.quaternion.setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ'));
+      } else if (id.startsWith('scl-')){
+        const sc = scn.scale.clone();
+        if (id==='scl-x') sc.x = val; else if (id==='scl-y') sc.y = val; else sc.z = val;
+        scn.scale.copy(sc);
+      } else if (id==='uni'){
+        // Uniform factor relative to the captured baseline
+        const f = val;
+        const base = uniformBaselineScale || scn.scale.clone();
+        scn.scale.set(base.x*f, base.y*f, base.z*f);
+        // Also reflect new per-axis numbers in the other scale rows (for visual sync)
+        const rows = wrapper.querySelectorAll('#transform-scale .slider-row');
+        rows.forEach(r=>{
+          const axis = r.dataset.row; // scl-x / scl-y / scl-z
+          const axisChar = axis.slice(-1); // x,y,z
+          const newVal = (axisChar==='x'?scn.scale.x:(axisChar==='y'?scn.scale.y:scn.scale.z));
+          const rr = r.querySelector('.rng');
+          const nn = r.querySelector('.num');
+          rr.value = newVal;
+          setNumValue(nn, newVal, 3);
+        });
       }
+    };
+
+    // Range + number sync
+    rng.addEventListener('input', ()=> apply(parseFloat(rng.value)));
+    num.addEventListener('input', ()=> {
+      const v = parseFloat(num.value);
+      if (!isNaN(v)) apply(v);
+    });
+
+    // Nudges
+    row.querySelectorAll('.nudge').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const dir = parseFloat(btn.dataset.dir);
+        const cur = parseFloat(rng.value);
+        apply(cur + dir*step);
+      });
     });
   });
 
@@ -781,6 +849,7 @@ function updateTransformPanel() {
   wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToCenterTile);
   wrapper.querySelector('#stick-now-btn').addEventListener('click', stickActiveToGround);
 }
+
 function updateTabsPanel() {
   const container = document.getElementById('tabs-list');
   const ids = Object.keys(models);
@@ -806,6 +875,7 @@ function updateTabsPanel() {
   container.querySelectorAll('.activate-btn').forEach(btn => btn.addEventListener('click', e => setActiveModel(e.target.closest('.tab-card').dataset.id)));
   container.querySelectorAll('.close-btn').forEach(btn => btn.addEventListener('click', e => removeModel(e.target.closest('.tab-card').dataset.id)));
 }
+
 function updateMeshPanel() {
   const container = document.getElementById('mesh-panel-content');
   const model = models[activeModelId];
@@ -839,6 +909,7 @@ function updateMeshPanel() {
   container.querySelectorAll('.connect-bone-btn').forEach(btn => btn.addEventListener('click', e => openBoneConnectModal(e.target.closest('.list-item').dataset.uuid)));
   document.getElementById('multi-delete-mesh-btn').addEventListener('click', deleteSelectedMeshes);
 }
+
 function updateTexturePanel() {
   const container = document.getElementById('texture-panel-content');
   const model = models[activeModelId];
@@ -879,6 +950,7 @@ function updateTexturePanel() {
     else { alert('Please select a valid mesh.'); }
   }));
 }
+
 function updateMaterialControls(mesh) {
   const wrapper = document.getElementById('material-controls-wrapper');
   if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
@@ -929,7 +1001,7 @@ function updateMaterialControls(mesh) {
   });
 }
 
-/* ================== Features ================== */
+/* ================== Misc Features ================== */
 function copyActiveModelData() {
   const model = models[activeModelId]; if (!model) return;
   const { position, scale } = model.gltf.scene;
@@ -982,65 +1054,6 @@ function handleTextureLoad(e) {
     alert(`Applied ${type}.`); URL.revokeObjectURL(url);
   });
   textureInput.value = '';
-}
-
-/* --- Bone Connection --- */
-function openBoneConnectModal(uuid) {
-  meshToConnect = scene.getObjectByProperty('uuid', uuid);
-  if (!meshToConnect) return;
-
-  const modal = document.getElementById('bone-connect-modal');
-  document.getElementById('bone-connect-mesh-name').textContent = `"${meshToConnect.name || '(unnamed)'}"`;
-  const targetModelSelect = document.getElementById('bone-connect-target-model');
-
-  const otherModels = Object.entries(models).filter(([id, model]) => {
-    if (id === activeModelId) return false;
-    let hasSkel = false; model.gltf.scene.traverse(o => { if (o.isSkinnedMesh || o.isBone) hasSkel = true; });
-    return hasSkel;
-  });
-
-  if (!otherModels.length) return alert("No other models with skeletons available.");
-
-  targetModelSelect.innerHTML = otherModels.map(([id, model]) => `<option value="${id}">${model.fileInfo.name}</option>`).join('');
-  populateBoneConnectBones();
-  modal.classList.remove('hidden');
-}
-function populateBoneConnectBones(){
-  const targetModelId = document.getElementById('bone-connect-target-model').value;
-  const targetModel = models[targetModelId]; if (!targetModel) return;
-  const bones = []; targetModel.gltf.scene.traverse(o => { if (o.isBone) bones.push(o); });
-  const sel = document.getElementById('bone-connect-target-bone');
-  sel.innerHTML = bones.map(b => `<option value="${b.uuid}">${b.name || b.uuid}</option>`).join('');
-}
-function confirmBoneConnection(){
-  const boneUUID = document.getElementById('bone-connect-target-bone').value;
-  const bone = scene.getObjectByProperty('uuid', boneUUID);
-  if (meshToConnect && bone) { bone.attach(meshToConnect); alert(`Connected "${meshToConnect.name || '(unnamed)'}" → "${bone.name || bone.uuid}"`); document.getElementById('bone-connect-modal').classList.add('hidden'); updateMeshPanel(); }
-  else alert('Connection failed.');
-}
-
-/* --- Exporting --- */
-function openExportModal() {
-  if (!Object.keys(models).length) return alert("No models to export.");
-  const select = document.getElementById('export-model-select');
-  select.innerHTML = Object.entries(models).map(([id, m]) => `<option value="${id}">${m.fileInfo.name}</option>`).join('');
-  select.value = activeModelId || select.options[0].value;
-  const currentName = models[select.value].fileInfo.name.replace(/\.glb$/i,'');
-  document.getElementById('export-filename-input').value = `${currentName}_edited`;
-  document.getElementById('export-modal').classList.remove('hidden');
-}
-function exportGLB() {
-  const id = document.getElementById('export-model-select').value;
-  const m = models[id];
-  let filename = document.getElementById('export-filename-input').value.trim();
-  if (!m) return alert("Selected model not found.");
-  if (!filename) return alert("Provide a filename.");
-  if (!/\.glb$/i.test(filename)) filename += '.glb';
-
-  const exporter = new GLTFExporter();
-  const options = { binary:true, animations: m.animation ? [m.animation.clip] : m.gltf.animations };
-  exporter.parse(m.gltf.scene, (result) => saveArrayBuffer(result, filename), (error) => { log('Export error:', error); alert('Export failed.'); }, options);
-  document.getElementById('export-modal').classList.add('hidden');
 }
 
 /* ---------- Utils ---------- */
