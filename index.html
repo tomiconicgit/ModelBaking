@@ -11,8 +11,8 @@
     "short_name":"TitanForge",
     "start_url":".",
     "display":"standalone",
-    "background_color":"#101318",
-    "theme_color":"#101318",
+    "background_color":"#000000",
+    "theme_color":"#000000",
     "icons":[
       {"src":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAAaklEQVR4nO3BMQEAAADCoPVPbQ0PoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACeDc1wAAGaT44gAAAAAElFTSuQmCC","sizes":"192x192","type":"image/png"}
     ]
@@ -106,9 +106,10 @@
     /* Transform Sliders */
     .transform-group { margin-bottom: 24px; }
     .transform-group h4 { margin: 0 0 12px; font-size: 1rem; color: var(--fg-light); }
-    .slider-row { display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: center; margin-bottom: 8px; }
+    .slider-row { display: grid; grid-template-columns: 20px 1fr 44px 44px; gap: 8px; align-items: center; margin-bottom: 8px; }
     .slider-row label { font-weight: 700; color: var(--fg); }
-    .num { width: 80px; text-align: right; height: 44px; padding: 0 12px; }
+    .num { height: 44px; padding: 0 12px; text-align: right; }
+    .nudge { min-height: 44px; height: 44px; padding: 0; font-size: 1.2rem; background: var(--surface-bg); border: 1px solid var(--border); color: var(--fg); }
     .slider-row input[type=range] { grid-column: 1 / -1; margin-top: 4px; width: 100%; }
 
     /* Modals */
@@ -124,16 +125,42 @@
     .modal h3 { margin: 0 0 10px; font-size: 1.5rem; }
     .modal p { margin: 0 0 20px; color: var(--fg-light); line-height: 1.5; }
 
-    /* Bootstrap splash */
-    #bootstrap { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; z-index: 2000; }
-    #brand { font-weight: 900; font-size: 38px; letter-spacing: 2px; color: #fff; opacity: 0; transform: translateY(8px); transition: opacity .6s ease, transform .6s ease; }
+    /* --- New Bootstrap Splash --- */
+    #bootstrap { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px; z-index: 2000; background: radial-gradient(circle, #111 0%, #000 100%); }
+    #brand {
+      font-weight: 700; font-size: 38px; letter-spacing: 2px;
+      opacity: 0; transform: translateY(8px); transition: opacity .6s ease, transform .6s ease;
+      background: linear-gradient(90deg, #e0e0e0, #ffffff, #e0e0e0);
+      background-size: 200% auto;
+      color: #fff; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: shimmer 5s linear infinite;
+    }
     #brand.show { opacity: 1; transform: none; }
-    #spin { width: 54px; height: 54px; border-radius: 50%; border: 5px solid #fff3; border-top-color: #fff; animation: sp 1s linear infinite; }
-    #spin.error { border-color: #ff334455; border-top-color: #ff3344; box-shadow: 0 0 20px #ff3344; }
     #boot-msg { color: #9fb6ff; font: 14px/1.4 ui-monospace,monospace; }
     #boot-err { color: #ffb6c1; white-space: pre-wrap; max-width: min(90vw,680px); display: none; }
     #copy-err { display: none; }
-    @keyframes sp{ to{ transform: rotate(360deg) } }
+    @keyframes shimmer { to { background-position: 200% center; } }
+
+    #spin-container { width: 60px; height: 60px; perspective: 1000px; }
+    #spin {
+        width: 100%; height: 100%; position: relative;
+        transform-style: preserve-3d;
+        animation: spin3d 4s infinite linear;
+    }
+    #spin.error { animation: none; }
+    #spin div {
+        position: absolute; width: 100%; height: 100%;
+        border: 2px solid #fff;
+        background: rgba(255,255,255,0.1);
+    }
+    #spin.error div { border-color: #ff3b30; background: rgba(255,59,48,0.1); }
+    .s-front  { transform: translateZ(30px); }
+    .s-back   { transform: translateZ(-30px) rotateY(180deg); }
+    .s-right  { transform: rotateY(90deg) translateZ(30px); }
+    .s-left   { transform: rotateY(-90deg) translateZ(30px); }
+    .s-top    { transform: rotateX(90deg) translateZ(30px); }
+    .s-bottom { transform: rotateX(-90deg) translateZ(30px); }
+    @keyframes spin3d { to { transform: rotateY(360deg) rotateX(360deg); } }
   </style>
 
   <script type="importmap">
@@ -148,7 +175,13 @@
 <body>
   <div id="bootstrap">
     <div id="brand">TITAN FORGE</div>
-    <div id="spin"></div>
+    <div id="spin-container">
+      <div id="spin">
+        <div class="s-front"></div> <div class="s-back"></div>
+        <div class="s-left"></div> <div class="s-right"></div>
+        <div class="s-top"></div> <div class="s-bottom"></div>
+      </div>
+    </div>
     <div id="boot-msg">Loading…</div>
     <div id="boot-err"></div>
     <button id="copy-err" class="button ghost">Copy Error</button>
