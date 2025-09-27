@@ -181,8 +181,8 @@
             <div class="form-group">
               <label>Snap Mode</label>
               <select id="grid-snap-mode">
-                <option value="centers" selected>Tile Centers (..., -24.5, -23.5, ...)</option>
-                <option value="edges">Tile Edges (..., -25, -24, -23, ...)</option>
+                <option value="centers" selected>Tile Centers (...,-24.5,-23.5,...)</option>
+                <option value="edges">Tile Edges (...,-25,-24,-23,...)</option>
               </select>
             </div>
           </div>
@@ -315,7 +315,7 @@ function snapCoord(v){
   const offset = GRID.snapMode === 'centers' ? (0.5 * t) : 0.0;
   return Math.round((v - offset)/t)*t + offset;
 }
-// Match game's getTileAt(): off = TILES_PER_CHUNK/2 - 0.5
+// Match game getTileAt(): off = TILES_PER_CHUNK/2 - 0.5
 function tileIndexFromWorld(v){
   const off = GRID.chunk * 0.5 - 0.5; // 24.5 for 50×50
   return Math.round((v / GRID.tile) + off);
@@ -390,7 +390,7 @@ function init() {
   camera.position.set(0, 8, 12);
 
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0.5, 0, 0.5); // aim near the true center tile (0.5,0.5)
+  controls.target.set(0.5, 0, 0.5); // aim near the true center tile
   controls.enableDamping = true;
   controls.minDistance = 1;
   controls.maxDistance = 200;
@@ -503,7 +503,6 @@ function setupEventListeners() {
     }
   });
 
-  document.getElementById('load-model-btn').addEventListener('click', () => modelInput.click());
   modelInput.addEventListener('change', handleModelLoad);
   animationInput.addEventListener('change', handleAnimationLoad);
   textureInput.addEventListener('change', handleTextureLoad);
@@ -547,69 +546,68 @@ function setupEventListeners() {
   });
 }
 
-/* ================== Model handling ================== */
-function handleModelLoad(e){
+/* ================== Model handling — FIXED (loadAsync + Blob URLs) ================== */
+async function handleModelLoad(e){
   const files = e.target.files;
-  if (!files.length) return;
+  if (!files || !files.length) return;
+
   for (const file of files) {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      log('Parsing:', file.name, file.size + ' bytes');
-      gltfLoader.parse(
-        ev.target.result,
-        '',
-        (gltf) => {
-          const id = `model-${modelIdCounter++}`;
-          const stats = calculateModelStats(gltf.scene);
-          const skeletonPresent = hasSkeleton(gltf.scene);
+    const url = URL.createObjectURL(file);
+    try {
+      log('Loading:', file.name, file.size + ' bytes', '(blob url)');
+      const gltf = await gltfLoader.loadAsync(url);
 
-          let skeletonHelper = null;
-          if (skeletonPresent) {
-            skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
-            skeletonHelper.visible = false;
-            scene.add(skeletonHelper);
+      const id = `model-${modelIdCounter++}`;
+      const stats = calculateModelStats(gltf.scene);
+      const skeletonPresent = hasSkeleton(gltf.scene);
+
+      let skeletonHelper = null;
+      if (skeletonPresent) {
+        skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
+        skeletonHelper.visible = false;
+        scene.add(skeletonHelper);
+      }
+
+      // Normalize materials to standard & enable shadows
+      gltf.scene.traverse(o=>{
+        if (o.isMesh){
+          o.castShadow = true;
+          o.receiveShadow = true;
+          if (!o.material.isMeshStandardMaterial){
+            o.material = new THREE.MeshStandardMaterial({
+              color: (o.material?.color?.clone()) || new THREE.Color(0xffffff),
+              metalness: 0.1, roughness: 0.85
+            });
           }
-
-          gltf.scene.traverse(o=>{
-            if (o.isMesh){
-              o.castShadow = true;
-              o.receiveShadow = true;
-              if (!o.material.isMeshStandardMaterial){
-                o.material = new THREE.MeshStandardMaterial({
-                  color: (o.material?.color?.clone()) || new THREE.Color(0xffffff),
-                  metalness: 0.1, roughness: 0.85
-                });
-              }
-            }
-          });
-
-          models[id] = {
-            gltf,
-            mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
-            animation: null,
-            skeletonHelper,
-            fileInfo: { name:file.name, size:file.size, polygons:stats.polygons, vertices:stats.vertices }
-          };
-
-          scene.add(gltf.scene);
-
-          if (!activeModelId) {
-            setActiveModel(id);
-            frameObject(gltf.scene);
-          }
-          updateAllPanels();
-          log('Loaded:', file.name, `P:${stats.polygons} V:${stats.vertices}`);
-        },
-        (error) => {
-          log('GLTF parse error:', error?.message || error);
-          alert(`Failed to load "${file.name}" (see Logs).`);
         }
-      );
-    };
-    reader.readAsArrayBuffer(file);
+      });
+
+      models[id] = {
+        gltf,
+        mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
+        animation: null,
+        skeletonHelper,
+        fileInfo: { name:file.name, size:file.size, polygons:stats.polygons, vertices:stats.vertices }
+      };
+
+      scene.add(gltf.scene);
+
+      if (!activeModelId) {
+        setActiveModel(id);
+        frameObject(gltf.scene); // camera only; does not move model
+      }
+      updateAllPanels();
+      log('Loaded OK:', file.name, `P:${stats.polygons} V:${stats.vertices}`);
+    } catch (err) {
+      log('GLTF load error:', err?.message || err);
+      alert(`Failed to load "${file.name}". Open “Logs” to see details.`);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
-  modelInput.value = '';
+  e.target.value = '';
 }
+
 function frameObject(object){
   const box = new THREE.Box3().setFromObject(object);
   const size = box.getSize(new THREE.Vector3());
@@ -656,38 +654,6 @@ function fitActiveToTiles(tilesX=1, tilesZ=1){
   const scaleZ = targetZ / Math.max(1e-5, size.z);
   const k = Math.min(scaleX, scaleZ);
   s.scale.multiplyScalar(k);
-}
-
-/* ================== Pivot Centering Utility ================== */
-// Moves children so the model's root origin becomes the bounds center (or bottom center).
-// keepWorld=true keeps the model visually in the same place.
-function recenterPivotToBounds(root, { mode = 'center', keepWorld = true } = {}) {
-  if (!root) return;
-  root.updateWorldMatrix(true, false);
-
-  const box = new THREE.Box3().setFromObject(root);
-  if (!isFinite(box.min.x)) return;
-
-  const centerW = box.getCenter(new THREE.Vector3());
-  const minW = box.min.clone();
-
-  // Convert to root-local
-  const centerL = root.worldToLocal(centerW.clone());
-  const minL = root.worldToLocal(minW.clone());
-
-  const offset = new THREE.Vector3(
-    centerL.x,
-    mode === 'bottom' ? minL.y : centerL.y,
-    centerL.z
-  );
-
-  // Shift children by -offset
-  root.children.forEach(ch => { ch.position.sub(offset); });
-
-  // Keep same world position if requested
-  if (keepWorld) root.position.add(offset);
-
-  updateAllPanels?.();
 }
 
 /* ================== Panels ================== */
@@ -777,8 +743,6 @@ function updateTransformPanel() {
       <div class="button-group" style="margin-top:.5rem;">
         <button id="snap-now-btn" class="button">Snap to Center Tile</button>
         <button id="stick-now-btn" class="button ghost">Stick to Ground</button>
-        <button id="center-pivot-btn" class="button ghost">Center Pivot (mid)</button>
-        <button id="center-ground-pivot-btn" class="button ghost">Center Pivot (bottom)</button>
       </div>
     </div>
 
@@ -849,16 +813,13 @@ function updateTransformPanel() {
         const f = val;
         const base = uniformBaselineScale || scn.scale.clone();
         scn.scale.set(base.x*f, base.y*f, base.z*f);
-        // Reflect new per-axis numbers in the other scale rows
+        // Sync the per-axis rows visually
         const rows = wrapper.querySelectorAll('#transform-scale .slider-row');
         rows.forEach(r=>{
-          const axis = r.dataset.row; // scl-x / scl-y / scl-z
-          const axisChar = axis.slice(-1); // x,y,z
-          const newVal = (axisChar==='x'?scn.scale.x:(axisChar==='y'?scn.scale.y:scn.scale.z));
-          const rr = r.querySelector('.rng');
-          const nn = r.querySelector('.num');
-          rr.value = newVal;
-          setNumValue(nn, newVal, 3);
+          const axis = r.dataset.row.slice(-1); // x/y/z
+          const newVal = axis==='x'?scn.scale.x:axis==='y'?scn.scale.y:scn.scale.z;
+          r.querySelector('.rng').value = newVal;
+          setNumValue(r.querySelector('.num'), newVal, 3);
         });
       }
     };
@@ -880,17 +841,9 @@ function updateTransformPanel() {
     });
   });
 
-  // Snap, stick, and pivot buttons
+  // Snap & stick buttons
   wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToCenterTile);
   wrapper.querySelector('#stick-now-btn').addEventListener('click', stickActiveToGround);
-  wrapper.querySelector('#center-pivot-btn').addEventListener('click', () => {
-    const s = getActiveScene(); if (!s) return;
-    recenterPivotToBounds(s, { mode: 'center', keepWorld: true });
-  });
-  wrapper.querySelector('#center-ground-pivot-btn').addEventListener('click', () => {
-    const s = getActiveScene(); if (!s) return;
-    recenterPivotToBounds(s, { mode: 'bottom', keepWorld: true });
-  });
 }
 
 function updateTabsPanel() {
@@ -1056,24 +1009,28 @@ function toggleRigVisibility() {
   if (model && model.skeletonHelper) { model.skeletonHelper.visible = !model.skeletonHelper.visible; updateDashboardPanel(); }
 }
 
-/* --- Animation --- */
-function handleAnimationLoad(e) {
+/* --- Animation (also using loadAsync + Blob URL) --- */
+async function handleAnimationLoad(e) {
   const file = e.target.files[0];
   const model = models[activeModelId];
   if (!file || !model || !model.mixer) { alert("Select an active model with a skeleton first."); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    gltfLoader.parse(ev.target.result, '', (gltf) => {
-      if (!gltf.animations.length) { alert('This file has no animations.'); return; }
-      removeAnimation();
-      const clip = gltf.animations[0];
-      const action = model.mixer.clipAction(clip);
-      model.animation = { clip, action };
-      updateDashboardPanel();
-    }, (err)=>{ log('Anim parse error:', err?.message || err); alert('Animation load failed.'); });
-  };
-  reader.readAsArrayBuffer(file);
-  animationInput.value = '';
+
+  const url = URL.createObjectURL(file);
+  try {
+    const gltf = await gltfLoader.loadAsync(url);
+    if (!gltf.animations.length) { alert('This file has no animations.'); return; }
+    removeAnimation();
+    const clip = gltf.animations[0];
+    const action = model.mixer.clipAction(clip);
+    model.animation = { clip, action };
+    updateDashboardPanel();
+  } catch (err) {
+    log('Anim load error:', err?.message || err);
+    alert('Animation load failed (see Logs).');
+  } finally {
+    URL.revokeObjectURL(url);
+    animationInput.value = '';
+  }
 }
 function removeAnimation(){ const m = models[activeModelId]; if (m && m.animation){ m.mixer.stopAllAction(); m.mixer.uncacheClip(m.animation.clip); m.animation = null; updateDashboardPanel(); } }
 function toggleAnimation(){ const m = models[activeModelId]; if (!m || !m.animation) return; const a = m.animation.action; a.paused = !a.paused; if (!a.isRunning()) a.play(); updateDashboardPanel(); }
@@ -1099,7 +1056,7 @@ function handleTextureLoad(e) {
   textureInput.value = '';
 }
 
-/* --- Bone Connection --- */
+/* --- Bone Connection (UI stubs kept) --- */
 function openBoneConnectModal(uuid) {
   meshToConnect = scene.getObjectByProperty('uuid', uuid);
   if (!meshToConnect) return;
