@@ -2,29 +2,29 @@ import { App, formatBytes } from './viewer.js';
 
 export function mountTabs(refreshOnly=false){
   const el = document.getElementById('tabs-panel');
-  if (!refreshOnly){ el.innerHTML = `<div id="tabs-list"></div>`; }
+  if (!refreshOnly){ el.innerHTML = `<div id="tabs-list" style="display:flex; flex-direction:column; gap:12px;"></div>`; }
   refresh();
 
   function refresh(){
     const list = document.getElementById('tabs-list');
     const ids = Object.keys(App.models);
-    if (!ids.length){ list.innerHTML = '<div style="opacity:.7">No models loaded.</div>'; return; }
+    if (!ids.length){ list.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">No models loaded.</div>'; return; }
 
     list.innerHTML = ids.map(id=>{
       const m = App.models[id]; const isActive = id===App.activeModelId;
       return `
-        <div style="border:1px solid #2a2f36;border-radius:10px;padding:12px;background:#1e222a;${isActive?'box-shadow:0 0 10px #099':''}">
-          <div style="display:flex;justify-content:space-between;gap:12px">
-            <h3 style="margin:0;font-size:1rem">${m.fileInfo.name}</h3>
-          </div>
-          <div style="font-size:.85rem;opacity:.8;margin-top:6px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
+        <div style="background:var(--surface-bg); border:1px solid ${isActive ? 'var(--primary)' : 'var(--border)'}; border-radius:var(--radius-md); padding:16px; box-shadow:${isActive ? '0 0 10px rgba(0,122,255,0.3)' : 'none'}; transition: border .2s, box-shadow .2s;">
+          <h3 style="margin:0 0 12px; font-size:1.1rem; word-break:break-all;">${m.fileInfo.name}</h3>
+          
+          <div style="font-size:0.85rem; color:var(--fg-light); display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin-bottom: 16px;">
             <strong>Size:</strong><span>${formatBytes(m.fileInfo.size)}</span>
             <strong>Polygons:</strong><span>${m.fileInfo.polygons.toLocaleString()}</span>
             <strong>Vertices:</strong><span>${m.fileInfo.vertices.toLocaleString()}</span>
           </div>
-          <div class="button-group" style="margin-top:10px">
-            <button class="button btn-activate" ${isActive?'disabled':''} data-id="${id}">Activate</button>
-            <button class="button accent btn-close" data-id="${id}">Close</button>
+
+          <div class="button-group">
+            <button class="button btn-activate" ${isActive ? 'disabled' : ''} data-id="${id}" style="flex:1;">Activate</button>
+            <button class="button accent btn-close" data-id="${id}" style="flex:1;">Close</button>
           </div>
         </div>`;
     }).join('');
@@ -35,6 +35,8 @@ export function mountTabs(refreshOnly=false){
 
   function removeModel(id){
     const m = App.models[id]; if (!m) return;
+    if (!confirm(`Are you sure you want to close "${m.fileInfo.name}"? All unsaved changes will be lost.`)) return;
+    
     const sc = m.gltf.scene;
     sc.traverse(o=>{
       if (o.isMesh){ o.geometry?.dispose?.(); if (Array.isArray(o.material)) o.material.forEach(mm=>mm?.dispose?.()); else o.material?.dispose?.(); }
