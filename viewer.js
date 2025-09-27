@@ -21,9 +21,6 @@ export const App = {
   hud: document.getElementById('hud'),
   viewerEl: document.getElementById('viewer3d'),
 
-  /* Loaders shared by modules */
-  textureLoader: new THREE.TextureLoader(),
-
   /* Grid (matches your game) */
   GRID: { tile: 1, chunk: 50, snapMode: 'centers' },
 
@@ -36,39 +33,47 @@ export const App = {
   /* Models registry */
   models: {},            // id -> { gltf, anchor, mixer, animation, skeletonHelper, fileInfo }
   activeModelId: null,
-  _modelIdCounter: 0,
+  modelIdCounter: 0,     // public counter (for older modules)
+  _modelIdCounter: 0,    // legacy name used internally before; kept for compat
 
   /* Events for panels to react (e.g., transform sliders) */
   events: new EventTarget(),
 
   /* Temporary UI state shared with textures.js */
   ui: { textureTarget: { mesh:null, type:null } },
-
-  /* API (exported at bottom) will be filled in here */
 };
 
+let __initialized = false;
+
 /* -------------------------------------------------------
-   Init
+   Init (idempotent)
 ------------------------------------------------------- */
-(function init() {
+export async function initViewer() {
+  if (__initialized) return;
+
   const { viewerEl } = App;
+  if (!viewerEl) throw new Error('#viewer3d not found in DOM');
 
   // Renderer
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(viewerEl.clientWidth || window.innerWidth, viewerEl.clientHeight || Math.round(window.innerHeight * 0.55));
+  renderer.setSize(
+    viewerEl.clientWidth || window.innerWidth,
+    viewerEl.clientHeight || Math.round(window.innerHeight * 0.55)
+  );
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.setClearColor(0x101318, 1);
   viewerEl.appendChild(renderer.domElement);
 
-  // Scene, env, camera
+  // Scene + env
   const scene = new THREE.Scene();
   const pmremGen = new THREE.PMREMGenerator(renderer);
   const envTex = pmremGen.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
   scene.background = new THREE.Color(0x101318);
 
+  // Camera
   const camera = new THREE.PerspectiveCamera(
     50,
     renderer.domElement.clientWidth / renderer.domElement.clientHeight,
@@ -77,8 +82,9 @@ export const App = {
   );
   camera.position.set(0, 8, 12);
 
+  // Controls (aim at half-tile center for “game feel”)
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0.5, 0, 0.5);           // aim between central 4 tiles (game feel)
+  controls.target.set(0.5, 0, 0.5);
   controls.enableDamping = true;
   controls.minDistance = 1;
   controls.maxDistance = 200;
@@ -124,7 +130,9 @@ export const App = {
     controls.update();
     renderer.render(scene, camera);
   })();
-})();
+
+  __initialized = true;
+}
 
 /* -------------------------------------------------------
    Grid / floor (solid color + tile lines) — matches game
@@ -135,6 +143,7 @@ function clearGrid(){
   App.gridHelper = App.majorLines = App.cursorCross = App.floorMesh = null;
 }
 
+/** Rebuild the solid floor + grid + cursor cross */
 export function buildFloorAndGrid(){
   clearGrid();
 
@@ -144,13 +153,9 @@ export function buildFloorAndGrid(){
   const divisions = GRID.chunk;             // 50×50 grid
   const half = size * 0.5;
 
-  // Solid floor
+  // Solid floor (lets you see objects that sink below Y=0)
   const floorGeo = new THREE.PlaneGeometry(size, size, 1, 1);
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x141820,
-    roughness: 1.0,
-    metalness: 0.0
-  });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 1.0, metalness: 0.0 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.receiveShadow = true;
   floor.rotation.x = -Math.PI * 0.5;
@@ -190,6 +195,9 @@ export function buildFloorAndGrid(){
   const cross = new THREE.LineSegments(crossG, new THREE.LineBasicMaterial({ color:0xff4444 }));
   scene.add(cross);
   App.cursorCross = cross;
+
+  // Back-compat: some older code expects window.__cursorCross
+  try { window.__cursorCross = cross; } catch {}
 
   // public hook for other modules
   App.events.dispatchEvent(new CustomEvent('grid:rebuilt'));
@@ -234,11 +242,10 @@ function installCursorSnapping(){
 
 /* -------------------------------------------------------
    Models: add/remove/select
-   NOTE: We wrap every loaded model in an "anchor" group.
-         Grid placement moves the anchor; transform sliders
-         move the model (root) itself. Export uses only root,
-         so position sliders can be 0.00 while the model still
-         appears centered on the grid. ✅
+   We wrap each loaded model in an "anchor" group.
+   Grid placement moves the anchor; transform sliders move
+   the model (root) itself. Export uses only the root, so
+   position sliders can be 0.00 while still centered.
 ------------------------------------------------------- */
 function hasSkeleton(object){ let v=false; object.traverse(o=>{ if (o.isSkinnedMesh || o.isBone) v=true; }); return v; }
 function calculateModelStats(object){ let polygons=0, vertices=0; object.traverse(o=>{ if (o.isMesh && o.geometry && o.geometry.attributes?.position){ const g=o.geometry; polygons += g.index ? g.index.count/3 : g.attributes.position.count/3; vertices += g.attributes.position.count; } }); return {polygons, vertices}; }
@@ -251,7 +258,7 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
   anchor.add(gltf.scene);
   App.scene.add(anchor);
 
-  // Materials + shadows normalization
+  // normalize materials
   gltf.scene.traverse(o=>{
     if (o.isMesh){
       o.castShadow = true;
@@ -265,7 +272,11 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
     }
   });
 
-  const id = `model-${App._modelIdCounter++}`;
+  // id
+  const idNum = App.modelIdCounter++;
+  App._modelIdCounter = App.modelIdCounter; // keep legacy in sync
+  const id = `model-${idNum}`;
+
   const stats = calculateModelStats(gltf.scene);
   const skeletonPresent = hasSkeleton(gltf.scene);
   let skeletonHelper = null;
@@ -289,7 +300,6 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
     App.frameObject(anchor);
   }
 
-  // Let panels update
   App.events.dispatchEvent(new CustomEvent('models:changed'));
   return id;
 };
@@ -327,6 +337,9 @@ App.getActiveScene = function getActiveScene(){
   const m = App.getActive();
   return m?.gltf?.scene || null;
 };
+
+// Back-compat for older grid code that asked for "root"
+App.getActiveRoot = App.getActiveScene;
 
 /* -------------------------------------------------------
    Camera framing
@@ -376,7 +389,7 @@ App.snapActiveToCenterTile = function snapActiveToCenterTile(){
   // Move ANCHOR to tile center for world placement
   model.anchor.position.set(c, model.anchor.position.y, c);
 
-  // Keep the model's own transform clean for export
+  // Keep the model's own transform clean for export (sliders show 0)
   const s = model.gltf.scene;
   s.position.x = 0;
   s.position.z = 0;
@@ -384,11 +397,14 @@ App.snapActiveToCenterTile = function snapActiveToCenterTile(){
   emitTransformSync(); // tell transform panel to show 0.00/0.00
 };
 
+// Back-compat: some modules call this name
+App.snapToCenterAndZero = App.snapActiveToCenterTile;
+
 App.placeActiveAtCursor = function placeActiveAtCursor(){
   const model = App.getActive(); if (!model || !App.cursorCross) return;
   const p = App.cursorCross.position;
   model.anchor.position.set(p.x, model.anchor.position.y, p.z);
-  // No change to model local transform → no transform event
+  // No change to local transform -> sliders remain unchanged
 };
 
 App.stickActiveToGround = function stickActiveToGround(){
@@ -402,7 +418,7 @@ App.stickActiveToGround = function stickActiveToGround(){
 App.fitActiveToTiles = function fitActiveToTiles(tilesX=1, tilesZ=1){
   const s = App.getActiveScene(); if (!s) return;
   const box = new THREE.Box3().setFromObject(s);
-  const size = box.getSize(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3>());
   const targetX = tilesX * App.GRID.tile;
   const targetZ = tilesZ * App.GRID.tile;
   const scaleX = targetX / Math.max(1e-5, size.x);
@@ -480,19 +496,19 @@ App.bakeOrigin = function bakeOrigin(mode='center'){
 };
 
 /* -------------------------------------------------------
-   Small helpers exposed for other modules
+   Small helpers (exported + on App)
 ------------------------------------------------------- */
-App.formatBytes = (bytes, decimals=2)=>{
-  if(bytes===0) return '0 Bytes';
-  const k=1024, dm=decimals<0?0:decimals, sizes=['Bytes','KB','MB','GB','TB'];
-  const i=Math.floor(Math.log(bytes)/Math.log(k));
-  return parseFloat((bytes/Math.pow(k,i)).toFixed(dm))+' '+sizes[i];
-};
+export function formatBytes(bytes, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024, dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+App.formatBytes = formatBytes;
 
 /* -------------------------------------------------------
-   Expose a couple of funcs for grid module to rebuild
+   Tiny helpers exported for older modules
 ------------------------------------------------------- */
-App.rebuildGrid = buildFloorAndGrid;
-
-/* Debug hook (optional) */
-window.App = App;
+export function getScene(){ return App.scene; }
+export const rebuildGrid = buildFloorAndGrid; // alias
