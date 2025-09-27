@@ -25,7 +25,6 @@ const splash = (() => {
   const err   = document.getElementById('boot-err');
   const copy  = document.getElementById('copy-err');
 
-  // Visual kick: fade brand in
   if (brand) brand.classList.add('show');
 
   function setMessage(t) { if (msg) msg.textContent = t; }
@@ -39,11 +38,7 @@ const splash = (() => {
     }
   }
   function fadeOutAndRevealApp() {
-    if (!root) {
-      // Fallback: just unhide app
-      document.getElementById('app')?.classList.remove('hidden');
-      return;
-    }
+    if (!root) { document.getElementById('app')?.classList.remove('hidden'); return; }
     root.style.transition = 'opacity .35s ease';
     root.style.opacity = '0';
     setTimeout(() => {
@@ -52,18 +47,15 @@ const splash = (() => {
     }, 350);
   }
 
-  return { root, brand, spin, msg, err, copy, setMessage, showError, fadeOutAndRevealApp };
+  return { setMessage, showError, fadeOutAndRevealApp, root };
 })();
 
 // --- Wire debugger to splash ------------------------------------------
 const dbg = initDebugger({
-  onPassed: startApp,
-  onFailed: (formatted) => {
-    // formatted.plain already contains "file:line:col\nstack"
-    splash.showError(formatted.plain);
-  },
+  // we’ll drive start-up below; no onPassed handler needed
+  onFailed: (formatted) => splash.showError(formatted.plain),
   ui: {
-    titleEl:   document.getElementById('brand'),   // optional
+    titleEl:   document.getElementById('brand'),
     spinnerEl: document.getElementById('spin'),
     messageEl: document.getElementById('boot-msg'),
     copyBtnEl: document.getElementById('copy-err')
@@ -74,41 +66,35 @@ const dbg = initDebugger({
 (async function boot() {
   try {
     splash.setMessage('Scanning modules…');
-    await dbg.checkModules(MODULES);   // on failure, this already renders error + halts
-    if (!dbg.state.passed) return;     // safety guard
+    await dbg.checkModules(MODULES);
+    if (!dbg.state.passed) return;
 
-    // If we got here, core modules are available.
     splash.setMessage('Starting Titan Forge…');
 
-    // Load app shell in parallel (these export init* functions)
-    const [viewer, loader, panel] = await Promise.all([
-      import('./viewer.js'),
+    // viewer.js self-initializes on import (no initViewer call)
+    await import('./viewer.js');
+
+    // Load the rest in parallel
+    const [{ initLoader }, { initPanels }] = await Promise.all([
       import('./loader.js'),
       import('./panel.js')
     ]);
 
-    // Init core pieces (order matters: viewer first so canvas exists)
-    await viewer.initViewer();
-    await loader.initLoader();
-    await panel.initPanels();
+    await initLoader();
+    await initPanels();
 
-    // Done — reveal application
     splash.setMessage('Ready');
     splash.fadeOutAndRevealApp();
 
   } catch (e) {
-    const message = (e && (e.stack || e.message)) ? (e.stack || e.message) : String(e);
+    const message = (e && (e.stack || e.message)) || String(e);
     splash.showError(message);
   }
 })();
 
-// --- Optional niceties -------------------------------------------------
-// Prevent stray pull-to-refresh / overscroll on mobile splash area.
+// Optional: quell accidental overscroll on splash
 (() => {
-  const el = splash.root;
+  const el = document.getElementById('bootstrap');
   if (!el) return;
-  el.addEventListener('touchmove', (ev) => {
-    // If you styled #bootstrap with `overscroll-behavior: contain`, you can skip this.
-    ev.preventDefault();
-  }, { passive: false });
+  el.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
 })();
