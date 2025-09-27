@@ -92,6 +92,71 @@ export function mountMeshes(refreshOnly = false) {
       }
     }));
 
+    // --- START: ADDED CODE ---
+    list.querySelectorAll('.btn-connect').forEach(b => b.addEventListener('click', e => {
+      const mesh = find(e);
+      if (!mesh) return;
+
+      // Helper to check for a skeleton
+      const hasSkeleton = (object) => {
+        let v = false;
+        object.traverse(o => { if (o.isSkinnedMesh || o.isBone) v = true; });
+        return v;
+      };
+
+      const otherModels = Object.entries(App.models)
+        .filter(([id]) => id !== App.activeModelId && hasSkeleton(App.models[id].gltf.scene));
+      
+      if (!otherModels.length) {
+        return alert('No other models with skeletons are loaded to connect to.');
+      }
+
+      const modal = document.getElementById('bone-connect-modal');
+      const meshNameEl = document.getElementById('bone-connect-mesh-name');
+      const modelSelect = document.getElementById('bone-connect-target-model');
+      const boneSelect = document.getElementById('bone-connect-target-bone');
+      const confirmBtn = document.getElementById('confirm-bone-connect-btn');
+      const cancelBtn = document.getElementById('cancel-bone-connect-btn');
+
+      meshNameEl.textContent = mesh.name || '(unnamed mesh)';
+      modelSelect.innerHTML = otherModels.map(([id, m]) => `<option value="${id}">${m.fileInfo.name}</option>`).join('');
+
+      function populateBones() {
+        const selectedModelId = modelSelect.value;
+        const targetModel = App.models[selectedModelId];
+        if (!targetModel) { boneSelect.innerHTML = ''; return; }
+        
+        const bones = [];
+        targetModel.gltf.scene.traverse(o => { if (o.isBone) bones.push(o); });
+        boneSelect.innerHTML = bones.map(bone => `<option value="${bone.uuid}">${bone.name}</option>`).join('');
+      }
+
+      modelSelect.onchange = populateBones;
+      
+      // Use .onclick for simple one-time modal actions
+      confirmBtn.onclick = () => {
+        const boneUuid = boneSelect.value;
+        const modelId = modelSelect.value;
+        if (!boneUuid || !modelId) return alert('Please select a target bone.');
+
+        const targetModel = App.models[modelId];
+        const targetBone = targetModel.gltf.scene.getObjectByProperty('uuid', boneUuid);
+
+        if (!targetBone) return alert('Target bone not found.');
+        
+        App.reparentMeshToBone(mesh.uuid, targetBone);
+        modal.classList.add('hidden');
+      };
+    
+      cancelBtn.onclick = () => {
+        modal.classList.add('hidden');
+      };
+
+      populateBones();
+      modal.classList.remove('hidden');
+    }));
+    // --- END: ADDED CODE ---
+
     list.querySelectorAll('.mesh-card').forEach(card => {
         const slider = card.querySelector('.simplify-slider');
         const label = card.querySelector('.simplify-ratio-label');
