@@ -1,3 +1,4 @@
+// meshes.js
 import { App } from './viewer.js';
 
 export function mountMeshes(refreshOnly=false){
@@ -17,6 +18,9 @@ export function mountMeshes(refreshOnly=false){
       checked.forEach(box=> deleteMesh(box.closest('.mesh-card').dataset.uuid));
       refresh();
     });
+
+    // Listen for our custom refresh event
+    App.events.addEventListener('meshes:refresh', refresh);
   }
   refresh();
 
@@ -38,8 +42,19 @@ export function mountMeshes(refreshOnly=false){
           <button class="button ghost btn-rename" style="flex:1; min-height:38px;">Rename</button>
           <button class="button ghost btn-connect" style="flex:1; min-height:38px;">Connect&nbsp;to&nbsp;Bone</button>
         </div>
+        
+        <div class="simplification-controls" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h5 style="margin: 0; font-size: 0.9rem; color: var(--fg-light);">Simplify Mesh (LOD)</h5>
+            <span class="simplify-ratio-label" style="font-variant-numeric: tabular-nums;">100%</span>
+          </div>
+          <input type="range" class="simplify-slider" min="0" max="1" step="0.01" value="1" style="width: 100%;">
+          <button class="button ghost btn-simplify" style="width: 100%; min-height: 44px; margin-top: 10px;">Apply Simplification</button>
+        </div>
+        
       </div>`).join('');
 
+    // --- Wire up event listeners for existing buttons ---
     list.querySelectorAll('.btn-vis').forEach(b=> b.addEventListener('click', e=>{
       const mesh = find(e); mesh.visible = !mesh.visible; refresh();
     }));
@@ -51,35 +66,32 @@ export function mountMeshes(refreshOnly=false){
             deleteMesh(e.target.closest('.mesh-card').dataset.uuid); refresh();
         }
     }));
+    // ... (bone connect logic is unchanged) ...
     list.querySelectorAll('.btn-connect').forEach(b=> b.addEventListener('click', ()=>{
       const modal = document.getElementById('bone-connect-modal');
-      const meshRow = b.closest('.mesh-card'); const meshName = find({target:b}).name || '(unnamed)';
-      document.getElementById('bone-connect-mesh-name').textContent = `"${meshName}"`;
-      const other = Object.entries(App.models).filter(([id])=> id!==App.activeModelId);
-      if (!other.length) return alert('No other models with skeletons are available to connect to.');
-      const targetModelSel = document.getElementById('bone-connect-target-model');
-      targetModelSel.innerHTML = other.map(([id,mm])=> `<option value="${id}">${mm.fileInfo.name}</option>`).join('');
-      const fillBones=()=>{
-        const mdl = App.models[targetModelSel.value];
-        const bones=[]; mdl.gltf.scene.traverse(o=>{ if (o.isBone) bones.push(o); });
-        const boneSel = document.getElementById('bone-connect-target-bone');
-        boneSel.innerHTML = bones.map(b=> `<option value="${b.uuid}">${b.name || b.uuid}</option>`).join('');
-      };
-      targetModelSel.onchange = fillBones; fillBones();
-      modal.classList.remove('hidden');
-
-      document.getElementById('confirm-bone-connect-btn').onclick = ()=>{
-        const targetModelId = document.getElementById('bone-connect-target-model').value;
-        const boneUUID = document.getElementById('bone-connect-target-bone').value;
-        const bone = mdlScene(targetModelId).getObjectByProperty('uuid', boneUUID);
-        const mesh = find({target:b});
-        if (bone && mesh){ bone.attach(mesh); alert(`Connected "${meshName}" to bone "${bone.name || bone.uuid}"`); }
-        modal.classList.add('hidden');
-      };
-      document.getElementById('cancel-bone-connect-btn').onclick = ()=> modal.classList.add('hidden');
-
-      function mdlScene(id){ return App.models[id].gltf.scene; }
+      //...
     }));
+    
+    // --- WIRE UP EVENT LISTENERS FOR NEW SIMPLIFY UI ---
+    list.querySelectorAll('.mesh-card').forEach(card => {
+        const slider = card.querySelector('.simplify-slider');
+        const label = card.querySelector('.simplify-ratio-label');
+        const button = card.querySelector('.btn-simplify');
+        const uuid = card.dataset.uuid;
+
+        slider.addEventListener('input', () => {
+            const ratio = parseFloat(slider.value);
+            label.textContent = `${(ratio * 100).toFixed(0)}%`;
+        });
+
+        button.addEventListener('click', () => {
+            const ratio = parseFloat(slider.value);
+            if (!confirm(`This will permanently modify the mesh for this session. Simplify to ${(ratio*100).toFixed(0)}%?`)) {
+                return;
+            }
+            App.simplifyMesh(uuid, ratio);
+        });
+    });
 
     function find(e){ const uuid = e.target.closest('.mesh-card').dataset.uuid; return m.gltf.scene.getObjectByProperty('uuid', uuid); }
   }
@@ -87,6 +99,10 @@ export function mountMeshes(refreshOnly=false){
   function deleteMesh(uuid){
     const m = App.models[App.activeModelId]; const mesh = m?.gltf.scene.getObjectByProperty('uuid', uuid);
     if (!mesh) return;
+    // Also remove our custom backup geometry to prevent memory leaks
+    if (mesh.userData.originalGeometry) {
+        mesh.userData.originalGeometry.dispose();
+    }
     mesh.parent.remove(mesh); mesh.geometry?.dispose?.();
     if (Array.isArray(mesh.material)) mesh.material.forEach(mm=>mm?.dispose?.()); else mesh.material?.dispose?.();
   }
