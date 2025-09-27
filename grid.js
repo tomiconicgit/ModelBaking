@@ -8,20 +8,20 @@ export function mountGrid(refreshOnly = false) {
 
   if (!refreshOnly) {
     el.innerHTML = `
-      <div class="button-group">
-        <button id="fit-tiles-btn" class="button">Fit Active to Tiles (1×1)</button>
-        <button id="snap-center-btn" class="button">Snap Active to Center Tile</button>
+      <h3 class="panel-title">Positioning</h3>
+      <div class="button-group" style="flex-direction: column;">
+        <button id="fit-tiles-btn" class="button">Fit Active to Tile (1×1)</button>
+        <button id="snap-center-btn" class="button">Snap Active to Center</button>
         <button id="place-cursor-btn" class="button ghost">Place Active at Cursor</button>
         <button id="stick-ground-btn" class="button ghost">Stick Active to Ground</button>
       </div>
 
-      <div style="margin-top:10px">
-        <div class="button-group">
-          <button id="origin-center-bake-btn" class="button ghost">Origin = BBox Center (Bake)</button>
-          <button id="origin-bottom-bake-btn" class="button ghost">Origin = Bottom Center (Bake)</button>
-        </div>
-        <div style="opacity:.7;margin-top:4px">
-          Origin tools change the internal pivot without visual shift and bake it so the GLB remembers it.
+      <div style="margin-top:24px; padding-top:24px; border-top: 1px solid var(--border)">
+        <h3 class="panel-title">Pivot / Origin (Bake)</h3>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Changes the model's internal pivot point. This action is destructive and permanent for the session.</p>
+        <div class="button-group" style="flex-direction: column;">
+          <button id="origin-center-bake-btn" class="button ghost">Origin to Bounding Box Center</button>
+          <button id="origin-bottom-bake-btn" class="button ghost">Origin to Bottom Center</button>
         </div>
       </div>
     `;
