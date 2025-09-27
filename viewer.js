@@ -221,7 +221,7 @@ function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
@@ -255,6 +255,11 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
   anchor.position.set(0,0,0);
   anchor.add(gltf.scene);
   App.scene.add(anchor);
+
+  // Set a default scale for game asset consistency.
+  // This matches the scale used for tool models in the game code.
+  const gameScale = 0.17139666515204327;
+  gltf.scene.scale.set(gameScale, gameScale, gameScale);
 
   gltf.scene.traverse(o=>{
     if (o.isMesh){
