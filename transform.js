@@ -22,6 +22,8 @@ export function mountTransform(refreshOnly=false){
       <div class="slider-row" data-row="${id}" data-step="${step}" data-min="${min}" data-max="${max}" data-decimals="${decimals}">
         <label>${label}</label>
         <input type="number" class="num" value="${val}" step="${step}">
+        <button class="nudge" data-dir="-1">−</button>
+        <button class="nudge" data-dir="1">+</button>
         <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step/10}">
       </div>`;
 
@@ -39,10 +41,14 @@ export function mountTransform(refreshOnly=false){
         ${sliderRow('rot-z','Z', THREE.MathUtils.radToDeg(euler.z).toFixed(1), -180, 180, 5, 1)}
       </div>
       <div class="transform-group">
-        <h4>Scale (per-axis)</h4>
+        <h4>Scale (Per-Axis)</h4>
         ${sliderRow('scl-x','X', s.scale.x.toFixed(3), 0.01, 10, 0.05, 3)}
         ${sliderRow('scl-y','Y', s.scale.y.toFixed(3), 0.01, 10, 0.05, 3)}
         ${sliderRow('scl-z','Z', s.scale.z.toFixed(3), 0.01, 10, 0.05, 3)}
+      </div>
+      <div class="transform-group">
+        <h4>Scale (Uniform)</h4>
+        ${sliderRow('uni','U', '1.00', 0.5, 2.0, 0.05, 2)}
       </div>
     `;
 
@@ -55,30 +61,55 @@ export function mountTransform(refreshOnly=false){
       const max = parseFloat(row.dataset.max);
       const decimals = parseInt(row.dataset.decimals || 2);
 
-      const clamp = (v)=>Math.min(max,Math.max(min,v));
+      const clamp = (v, targetId)=> {
+        const r = wrap.querySelector(`[data-row="${targetId}"]`);
+        const rMin = parseFloat(r.dataset.min);
+        const rMax = parseFloat(r.dataset.max);
+        return Math.min(rMax, Math.max(rMin, v));
+      }
 
       const apply = (val, source)=>{
-        val = clamp(val);
         const scn = App.models[App.activeModelId]?.gltf.scene; if (!scn) return;
+        let clampedVal = clamp(val, id);
         
-        if (source === 'rng') { num.value = val.toFixed(decimals); }
-        if (source === 'num') { rng.value = val; }
+        if (source !== 'num') { num.value = clampedVal.toFixed(decimals); }
+        if (source !== 'rng') { rng.value = clampedVal; }
         
         if (id.startsWith('pos-')){
-          if (id==='pos-x') scn.position.x = val; else if (id==='pos-y') scn.position.y = val; else scn.position.z = val;
+          if (id==='pos-x') scn.position.x = clampedVal; else if (id==='pos-y') scn.position.y = clampedVal; else scn.position.z = clampedVal;
         } else if (id.startsWith('rot-')){
           const cur = new THREE.Euler().setFromQuaternion(scn.quaternion, 'YXZ');
-          const rx = id==='rot-x' ? THREE.MathUtils.degToRad(val) : cur.x;
-          const ry = id==='rot-y' ? THREE.MathUtils.degToRad(val) : cur.y;
-          const rz = id==='rot-z' ? THREE.MathUtils.degToRad(val) : cur.z;
+          const rx = id==='rot-x' ? THREE.MathUtils.degToRad(clampedVal) : cur.x;
+          const ry = id==='rot-y' ? THREE.MathUtils.degToRad(clampedVal) : cur.y;
+          const rz = id==='rot-z' ? THREE.MathUtils.degToRad(clampedVal) : cur.z;
           scn.quaternion.setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ'));
         } else if (id.startsWith('scl-')){
-          if (id==='scl-x') scn.scale.x = val; else if (id==='scl-y') scn.scale.y = val; else scn.scale.z = val;
+          if (id==='scl-x') scn.scale.x = clampedVal; else if (id==='scl-y') scn.scale.y = clampedVal; else scn.scale.z = clampedVal;
+        } else if (id==='uni'){
+          // Uniform scale is multiplicative, so we reset its own slider after applying
+          scn.scale.multiplyScalar(clampedVal);
+          rng.value = 1.0; num.value = (1.0).toFixed(decimals);
+          // reflect into per-axis fields
+          ['x','y','z'].forEach(axis=>{
+            const r = wrap.querySelector(`[data-row="scl-${axis}"]`);
+            const newV = clamp(scn.scale[axis], `scl-${axis}`);
+            r.querySelector('.rng').value = newV;
+            r.querySelector('.num').value = newV.toFixed(3);
+          });
         }
       };
 
       rng.addEventListener('input', ()=> apply(parseFloat(rng.value), 'rng'));
       num.addEventListener('input', ()=> { const v = parseFloat(num.value); if (!isNaN(v)) apply(v, 'num'); });
+      row.querySelectorAll('.nudge').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const dir = parseFloat(btn.dataset.dir);
+          const cur = (id.startsWith('scl-') || id.startsWith('pos-')) 
+              ? parseFloat(num.value) 
+              : parseFloat(rng.value);
+          apply(cur + dir*step, 'nudge');
+        });
+      });
     });
   }
 }
