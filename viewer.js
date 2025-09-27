@@ -221,7 +221,7 @@ function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
@@ -442,6 +442,27 @@ App.bakeOrigin = function bakeOrigin(mode='center'){
   toRemove.forEach(o => o.parent && o.parent.remove(o));
   App.events.dispatchEvent(new Event('transform:refresh'));
 };
+
+// --- START: ADDED CODE ---
+/* -------------------------------------------------------
+   MESH ATTACHMENT LOGIC
+------------------------------------------------------- */
+App.reparentMeshToBone = function(meshUuid, targetBone) {
+    const activeModel = App.getActive();
+    if (!activeModel) return;
+
+    const mesh = activeModel.gltf.scene.getObjectByProperty('uuid', meshUuid);
+    if (!mesh) return;
+
+    // Use THREE.js's built-in 'attach' method.
+    // It handles the complex matrix transformations required to move an object
+    // between parents without changing its world position, rotation, or scale.
+    targetBone.attach(mesh);
+
+    // The mesh's local transform is now relative to the bone.
+    App.events.dispatchEvent(new Event('panels:refresh-all'));
+};
+// --- END: ADDED CODE ---
 
 /* -------------------------------------------------------
    MESH SIMPLIFICATION LOGIC
