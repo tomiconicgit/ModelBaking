@@ -8,7 +8,7 @@ export function mountMeshes(refreshOnly=false){
         <h3 class="panel-title" style="margin:0;">Meshes</h3>
         <button id="multi-delete-mesh-btn" class="button accent">Remove Selected</button>
       </div>
-      <div id="mesh-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+      <div id="mesh-list" style="display:flex; flex-direction:column; gap:8px;"></div>
     `;
     document.getElementById('multi-delete-mesh-btn').addEventListener('click', ()=>{
       const checked = el.querySelectorAll('.mesh-select:checked');
@@ -27,16 +27,16 @@ export function mountMeshes(refreshOnly=false){
 
     const meshes=[]; m.gltf.scene.traverse(o=>{ if (o.isMesh) meshes.push(o); });
     list.innerHTML = meshes.map(ms=>`
-      <div class="mesh-card" data-uuid="${ms.uuid}" style="background:var(--surface-bg); border-radius:var(--radius-md); border:1px solid var(--border); padding:12px;">
-        <div style="display:flex; gap:12px; align-items:center;">
-          <input type="checkbox" class="mesh-select" style="width:20px; height:20px;">
-          <div style="flex:1; font-weight:500;">${ms.name || '(unnamed mesh)'}</div>
-          <button class="button ghost btn-vis" style="min-height:40px; padding: 0 12px;">${ms.visible?'Hide':'Show'}</button>
+      <div class="mesh-card" data-uuid="${ms.uuid}" style="background:var(--surface-bg); border-radius:var(--radius-md); border:1px solid var(--border); padding:10px;">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+          <input type="checkbox" class="mesh-select" style="width:20px; height:20px; flex-shrink:0;">
+          <div style="flex:1; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ms.name || '(unnamed mesh)'}</div>
+          <button class="button ghost btn-vis" style="min-height:38px; padding: 0 12px;">${ms.visible?'Hide':'Show'}</button>
+          <button class="button accent btn-del" style="min-height:38px; padding: 0 12px;">Delete</button>
         </div>
-        <div class="button-group" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
-          <button class="button ghost btn-rename" style="flex:1;">Rename</button>
-          <button class="button ghost btn-connect" style="flex:1;">Connect&nbsp;to&nbsp;Bone</button>
-          <button class="button accent btn-del" style="flex:0;">Delete</button>
+        <div class="button-group">
+          <button class="button ghost btn-rename" style="flex:1; min-height:38px;">Rename</button>
+          <button class="button ghost btn-connect" style="flex:1; min-height:38px;">Connect&nbsp;to&nbsp;Bone</button>
         </div>
       </div>`).join('');
 
@@ -55,7 +55,6 @@ export function mountMeshes(refreshOnly=false){
       const modal = document.getElementById('bone-connect-modal');
       const meshRow = b.closest('.mesh-card'); const meshName = find({target:b}).name || '(unnamed)';
       document.getElementById('bone-connect-mesh-name').textContent = `"${meshName}"`;
-      // build model + bone selects
       const other = Object.entries(App.models).filter(([id])=> id!==App.activeModelId);
       if (!other.length) return alert('No other models with skeletons are available to connect to.');
       const targetModelSel = document.getElementById('bone-connect-target-model');
