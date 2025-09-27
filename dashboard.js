@@ -5,22 +5,32 @@ export function mountDashboard(refreshOnly=false){
   const el = document.getElementById('dashboard-panel');
   if (!refreshOnly) {
     el.innerHTML = `
-      <div class="button-group">
+      <div id="dash-status" style="color: var(--fg-light); margin-bottom: 20px; text-align: center;">Load a model to begin.</div>
+      
+      <div class="button-group" style="flex-direction: column;">
         <label class="button" for="model-input">Load Model(s)</label>
-        <button id="export-glb-btn" class="button" disabled>Export Active</button>
-        <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
-        <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
-        <button id="load-anim-btn" class="button ghost">Load Animation</button>
-        <button id="remove-anim-btn" class="button accent" disabled>Remove Animation</button>
+        <button id="export-glb-btn" class="button ghost" disabled>Export Active</button>
       </div>
-      <div id="anim-ui" class="hidden" style="margin-top:10px">
-        <div class="button-group">
-          <button id="play-pause-btn" class="button">▶ Play</button>
-          <button id="rewind-btn" class="button ghost">−0.5s</button>
-          <button id="forward-btn" class="button ghost">+0.5s</button>
+
+      <div id="anim-ui" class="hidden" style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
+        <h4 class="panel-title" style="margin-bottom:16px; text-align:center;">Animation Controls</h4>
+        <div class="button-group" style="justify-content:center;">
+            <button id="rewind-btn" class="button ghost">« 0.5s</button>
+            <button id="play-pause-btn" class="button">▶ Play</button>
+            <button id="forward-btn" class="button ghost">+0.5s »</button>
+        </div>
+        <div class="button-group" style="margin-top: 12px;">
+            <button id="remove-anim-btn" class="button accent" style="width:100%" disabled>Remove Animation</button>
         </div>
       </div>
-      <div id="dash-status" style="opacity:.7;margin-top:8px">Load a model to begin.</div>
+
+      <div style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
+        <div class="button-group" style="flex-direction: column;">
+            <button id="load-anim-btn" class="button ghost">Load Animation</button>
+            <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
+            <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
+        </div>
+      </div>
     `;
 
     document.getElementById('export-glb-btn').addEventListener('click', ()=> {
@@ -37,7 +47,7 @@ export function mountDashboard(refreshOnly=false){
     document.getElementById('copy-data-btn').addEventListener('click', ()=>{
       const m = App.models[App.activeModelId]; if (!m) return;
       const s = m.gltf.scene; const data = { position: s.position.toArray(), scale: s.scale.toArray() };
-      navigator.clipboard.writeText(JSON.stringify(data,null,2)).then(()=>alert('Model data copied.'));
+      navigator.clipboard.writeText(JSON.stringify(data,null,2)).then(()=>alert('Model transform data copied.'));
     });
 
     document.getElementById('toggle-rig-btn').addEventListener('click', ()=>{
@@ -63,23 +73,27 @@ export function mountDashboard(refreshOnly=false){
 
   function refresh(){
     const m = App.models[App.activeModelId];
-    document.getElementById('export-glb-btn').disabled = !m;
-    document.getElementById('copy-data-btn').disabled = !m;
+    const hasModel = !!m;
+
+    document.getElementById('export-glb-btn').disabled = !hasModel;
+    document.getElementById('copy-data-btn').disabled = !hasModel;
     const rigBtn = document.getElementById('toggle-rig-btn');
     if (m?.skeletonHelper){ rigBtn.disabled=false; rigBtn.textContent = m.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig'; }
-    else { rigBtn.disabled=true; }
+    else { rigBtn.disabled=true; rigBtn.textContent = 'Show Rig'; }
 
     const animUI = document.getElementById('anim-ui');
     if (m?.animation){
       animUI.classList.remove('hidden');
       const playBtn = document.getElementById('play-pause-btn');
-      playBtn.textContent = m.animation.action.isRunning() ? '❚❚ Pause' : '▶ Play';
+      const isPlaying = m.animation.action.isRunning() && !m.animation.action.paused;
+      playBtn.textContent = isPlaying ? '❚❚ Pause' : '▶ Play';
+      document.getElementById('remove-anim-btn').disabled = false;
     } else {
       animUI.classList.add('hidden');
     }
 
-    document.getElementById('dash-status').textContent = m
-      ? `${m.fileInfo.name} — ${formatBytes(m.fileInfo.size)} — P:${m.fileInfo.polygons.toLocaleString()} V:${m.fileInfo.vertices.toLocaleString()}`
+    document.getElementById('dash-status').innerHTML = m
+      ? `<strong>${m.fileInfo.name}</strong><br><span style="font-size:0.85em;">${formatBytes(m.fileInfo.size)} | P:${m.fileInfo.polygons.toLocaleString()} V:${m.fileInfo.vertices.toLocaleString()}</span>`
       : 'Load a model to begin.';
   }
 }
