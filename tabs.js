@@ -1,8 +1,13 @@
+// tabs.js
 import { App, formatBytes } from './viewer.js';
 
 export function mountTabs(refreshOnly=false){
   const el = document.getElementById('tabs-panel');
-  if (!refreshOnly){ el.innerHTML = `<div id="tabs-list" style="display:flex; flex-direction:column; gap:12px;"></div>`; }
+  if (!refreshOnly){ 
+    el.innerHTML = `<div id="tabs-list" style="display:flex; flex-direction:column; gap:12px;"></div>`; 
+    // ** THE FIX **: Make the Tabs panel listen for the global refresh event.
+    App.events.addEventListener('panels:refresh-all', refresh);
+  }
   refresh();
 
   function refresh(){
@@ -29,7 +34,7 @@ export function mountTabs(refreshOnly=false){
         </div>`;
     }).join('');
 
-    list.querySelectorAll('.btn-activate').forEach(b=> b.onclick = ()=>{ App.activeModelId = b.dataset.id; App.events.dispatchEvent(new Event('panels:refresh-all')); });
+    list.querySelectorAll('.btn-activate').forEach(b=> b.onclick = ()=>{ App.setActiveModel(b.dataset.id); App.events.dispatchEvent(new Event('panels:refresh-all')); });
     list.querySelectorAll('.btn-close').forEach(b=> b.onclick = ()=> removeModel(b.dataset.id));
   }
 
