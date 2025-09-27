@@ -302,22 +302,19 @@ document.getElementById('toggle-log').addEventListener('click', ()=> logEl.class
 
 /* ---------- Grid config (MATCHES GAME) ---------- */
 const GRID = {
-  tile: 1,        // = TILE_SIZE in your game (1 unit per tile)
-  chunk: 50,      // tiles per side (50×50 chunk)
-  snapMode: 'centers' // centers at ..., -24.5, -23.5, ..., +24.5
+  tile: 1,
+  chunk: 50,
+  snapMode: 'centers'
 };
 const hud = document.getElementById('hud');
 
-// centers => round((v - 0.5*t)/t)*t + 0.5*t
-// edges   => round(v/t)*t
 function snapCoord(v){
   const t = GRID.tile;
   const offset = GRID.snapMode === 'centers' ? (0.5 * t) : 0.0;
   return Math.round((v - offset)/t)*t + offset;
 }
-// Match game getTileAt(): off = TILES_PER_CHUNK/2 - 0.5
 function tileIndexFromWorld(v){
-  const off = GRID.chunk * 0.5 - 0.5; // 24.5 for 50×50
+  const off = GRID.chunk * 0.5 - 0.5;
   return Math.round((v / GRID.tile) + off);
 }
 function updateHud(worldX, worldZ){
@@ -390,7 +387,7 @@ function init() {
   camera.position.set(0, 8, 12);
 
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0.5, 0, 0.5); // aim near the true center between the four central tiles
+  controls.target.set(0.5, 0, 0.5);
   controls.enableDamping = true;
   controls.minDistance = 1;
   controls.maxDistance = 200;
@@ -441,16 +438,15 @@ function clearGrid(){
 function buildGameGrid(){
   clearGrid();
 
-  const size = GRID.chunk * GRID.tile;     // 50 * 1 = 50 world units (one game chunk)
-  const divisions = GRID.chunk;            // 50×50 tiles
+  const size = GRID.chunk * GRID.tile;
+  const divisions = GRID.chunk;
 
   gridHelper = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x2a2f36);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.95;
-  gridHelper.position.y = 0.0001; // tiny lift to avoid z-flicker with Y=0 items
+  gridHelper.position.y = 0.0001;
   scene.add(gridHelper);
 
-  // Major lines every 5 tiles
   const g = new THREE.BufferGeometry();
   const verts = [];
   const half = size * 0.5;
@@ -464,7 +460,6 @@ function buildGameGrid(){
   );
   scene.add(majorLines);
 
-  // Cursor cross (~ tile sized)
   const L = GRID.tile * 0.8;
   const crossG = new THREE.BufferGeometry();
   crossG.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -631,7 +626,7 @@ function getActiveScene(){
 }
 function snapActiveToCenterTile(){
   const s = getActiveScene(); if (!s) return;
-  const c = 0.5 * GRID.tile; // 0.5 for TILE_SIZE=1
+  const c = 0.5 * GRID.tile;
   s.position.set(c, s.position.y, c);
 }
 function placeActiveAtCursor(){
@@ -658,12 +653,10 @@ function fitActiveToTiles(tilesX=1, tilesZ=1){
 }
 
 /* ============ PIVOT TOOLS (buttons in Transform panel) ============ */
-/** Move model's pivot to bounding-box center or bottom-center without visual shift. */
 function recenterPivot(mode='center') {
   const root = getActiveScene(); if (!root) { alert('No active model.'); return; }
   root.updateWorldMatrix(true, true);
 
-  // World-space bounds
   const box = new THREE.Box3().setFromObject(root);
   if (!isFinite(box.min.x)) { alert('Empty bounds.'); return; }
 
@@ -672,23 +665,59 @@ function recenterPivot(mode='center') {
     ? new THREE.Vector3(centerW.x, box.min.y, centerW.z)
     : centerW;
 
-  // Convert to the model's local space
   const targetL = root.worldToLocal(targetW.clone());
 
-  // Shift all direct children so geometry is around the new pivot
   root.children.forEach(child => { child.position.sub(targetL); });
-
-  // Move root back so the model does not visually move
   root.position.add(targetL);
 
-  // If there's a skeleton helper, keep it aligned
   const model = models[activeModelId];
-  if (model?.skeletonHelper) {
-    model.skeletonHelper.update();
-  }
+  if (model?.skeletonHelper) model.skeletonHelper.update();
 
-  // Refresh transform UI
   updateTransformPanel();
+}
+
+// Bake the pivot change so exports remember it (static meshes only).
+function bakeOrigin(mode='center') {
+  const root = getActiveScene(); 
+  if (!root) { alert('No active model.'); return; }
+
+  // 1) Move pivot without visual shift
+  recenterPivot(mode);
+
+  // 2) Bake transforms into each (non-skinned) mesh so GLB stores clean origin
+  root.updateWorldMatrix(true, true);
+  const invRootWorld = new THREE.Matrix4().copy(root.matrixWorld).invert();
+
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh && !o.isSkinnedMesh && o.geometry) meshes.push(o); });
+
+  meshes.forEach(mesh => {
+    mesh.updateWorldMatrix(true, false);
+
+    const mWorld = mesh.matrixWorld.clone();
+    const mLocalToRoot = new THREE.Matrix4().multiplyMatrices(invRootWorld, mWorld);
+
+    mesh.geometry.applyMatrix4(mLocalToRoot);
+    mesh.geometry.computeBoundingBox();
+    mesh.geometry.computeBoundingSphere();
+
+    mesh.position.set(0,0,0);
+    mesh.quaternion.identity();
+    mesh.scale.set(1,1,1);
+    mesh.updateMatrix();
+
+    if (mesh.parent !== root) {
+      mesh.parent.remove(mesh);
+      root.add(mesh);
+    }
+  });
+
+  // remove empty groups
+  const toRemove = [];
+  root.traverse(o => { if (o !== root && !o.isMesh && (!o.children || o.children.length === 0)) toRemove.push(o); });
+  toRemove.forEach(o => o.parent && o.parent.remove(o));
+
+  alert('Origin baked. Export now — future snaps will center perfectly.');
 }
 
 /* ================== Panels ================== */
@@ -742,7 +771,7 @@ function updateDashboardPanel() {
   }
 }
 
-let uniformBaselineScale = null; // captured when building the panel
+let uniformBaselineScale = null;
 
 function updateTransformPanel() {
   const wrapper = document.getElementById('transform-controls-wrapper');
@@ -754,7 +783,7 @@ function updateTransformPanel() {
   }
 
   const s = model.gltf.scene;
-  uniformBaselineScale = s.scale.clone(); // baseline for uniform scale factor
+  uniformBaselineScale = s.scale.clone();
 
   const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
@@ -817,13 +846,22 @@ function updateTransformPanel() {
         Changes the internal pivot only (visual position stays the same).
       </div>
     </div>
+
+    <div class="transform-group">
+      <h4>Make this the Origin (bake for export)</h4>
+      <div class="button-group">
+        <button id="origin-center-bake-btn" class="button">Origin = BBox Center (Bake)</button>
+        <button id="origin-bottom-bake-btn" class="button ghost">Origin = Bottom Center (Bake)</button>
+      </div>
+      <div style="font-size:.85rem;color:var(--fg-light);margin-top:.25rem;">
+        Keeps the model where it is, rewrites the origin, and bakes it so the GLB remembers it.
+      </div>
+    </div>
   `;
 
-  // Utility
   const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
   const setNumValue = (el,val,dec=2)=>{ el.value = Number(val).toFixed(dec); };
 
-  // Bind all rows (pos/rot/scale/uni)
   wrapper.querySelectorAll('.slider-row').forEach(row=>{
     const rng = row.querySelector('.rng');
     const num = row.querySelector('.num');
@@ -855,15 +893,13 @@ function updateTransformPanel() {
         if (id==='scl-x') sc.x = val; else if (id==='scl-y') sc.y = val; else sc.z = val;
         scn.scale.copy(sc);
       } else if (id==='uni'){
-        // Uniform factor relative to the captured baseline
         const f = val;
         const base = uniformBaselineScale || scn.scale.clone();
         scn.scale.set(base.x*f, base.y*f, base.z*f);
-        // Mirror into per-axis rows for visual sync
         const rows = wrapper.querySelectorAll('#transform-scale .slider-row');
         rows.forEach(r=>{
-          const axis = r.dataset.row; // scl-x / scl-y / scl-z
-          const axisChar = axis.slice(-1); // x,y,z
+          const axis = r.dataset.row;
+          const axisChar = axis.slice(-1);
           const newVal = (axisChar==='x'?scn.scale.x:(axisChar==='y'?scn.scale.y:scn.scale.z));
           const rr = r.querySelector('.rng');
           const nn = r.querySelector('.num');
@@ -873,14 +909,12 @@ function updateTransformPanel() {
       }
     };
 
-    // Range + number sync
     rng.addEventListener('input', ()=> apply(parseFloat(rng.value)));
     num.addEventListener('input', ()=> {
       const v = parseFloat(num.value);
       if (!isNaN(v)) apply(v);
     });
 
-    // Nudges
     row.querySelectorAll('.nudge').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const dir = parseFloat(btn.dataset.dir);
@@ -890,13 +924,15 @@ function updateTransformPanel() {
     });
   });
 
-  // Snap & stick buttons
   wrapper.querySelector('#snap-now-btn').addEventListener('click', snapActiveToCenterTile);
   wrapper.querySelector('#stick-now-btn').addEventListener('click', stickActiveToGround);
 
-  // Pivot buttons
   wrapper.querySelector('#pivot-center-btn').addEventListener('click', ()=> recenterPivot('center'));
   wrapper.querySelector('#pivot-bottom-btn').addEventListener('click', ()=> recenterPivot('bottom'));
+
+  // NEW: bake buttons
+  wrapper.querySelector('#origin-center-bake-btn').addEventListener('click', ()=> bakeOrigin('center'));
+  wrapper.querySelector('#origin-bottom-bake-btn').addEventListener('click', ()=> bakeOrigin('bottom'));
 }
 
 function updateTabsPanel() {
