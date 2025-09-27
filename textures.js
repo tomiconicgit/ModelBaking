@@ -37,7 +37,6 @@ export function mountTextures(refreshOnly=false){
     const meshSel = document.getElementById('texture-mesh-select');
     const selectedMesh = ()=> m.gltf.scene.getObjectByProperty('uuid', meshSel.value);
 
-    // Material editor
     const applyMatUI = (mesh)=>{
       const wrapper = document.getElementById('material-controls-wrapper');
       if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
@@ -46,32 +45,32 @@ export function mountTextures(refreshOnly=false){
       }
       const mat = mesh.material;
       wrapper.innerHTML = `
-        <div class="material-group">
+        <div class="material-group" style="display: grid; gap: 8px;">
           <h3 class="panel-title">Material Properties</h3>
           
-          <div class="slider-row">
-            <label for="mat-color">Color</label>
-            <input type="color" id="mat-color" value="#${mat.color.getHexString()}" style="height:44px; padding:4px; border-radius:var(--radius-sm); background:transparent;">
+          <div style="display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;">
+            <label for="mat-color" style="margin:0;">Base Color</label>
+            <input type="color" id="mat-color" value="#${mat.color.getHexString()}" style="height:44px; padding:4px; border: 1px solid var(--border); border-radius:var(--radius-sm); background:transparent;">
           </div>
-          <div class="slider-row">
-            <label>Metal</label>
-            <span id="mat-metalness-val">${mat.metalness.toFixed(2)}</span>
+          <div class="slider-row" style="margin:0;">
+            <label>Metalness</label>
+            <span id="mat-metalness-val" style="justify-self: end; color: var(--fg-light);">${mat.metalness.toFixed(2)}</span>
             <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
           </div>
-          <div class="slider-row">
-            <label>Rough</label>
-            <span id="mat-roughness-val">${mat.roughness.toFixed(2)}</span>
+          <div class="slider-row" style="margin:0;">
+            <label>Roughness</label>
+            <span id="mat-roughness-val" style="justify-self: end; color: var(--fg-light);">${mat.roughness.toFixed(2)}</span>
             <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
           </div>
 
-          <h3 class="panel-title" style="margin-top:24px;">Emissive</h3>
-          <div class="slider-row">
-            <label for="mat-emissive">Color</label>
-            <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}" style="height:44px; padding:4px; border-radius:var(--radius-sm); background:transparent;">
+          <h3 class="panel-title" style="margin-top:16px;">Emissive</h3>
+          <div style="display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;">
+            <label for="mat-emissive" style="margin:0;">Color</label>
+            <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}" style="height:44px; padding:4px; border: 1px solid var(--border); border-radius:var(--radius-sm); background:transparent;">
           </div>
-          <div class="slider-row">
+          <div class="slider-row" style="margin:0;">
             <label>Intensity</label>
-            <span id="mat-emissive-intensity-val">${mat.emissiveIntensity.toFixed(2)}</span>
+            <span id="mat-emissive-intensity-val" style="justify-self: end; color: var(--fg-light);">${mat.emissiveIntensity.toFixed(2)}</span>
             <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
           </div>
         </div>
@@ -103,7 +102,6 @@ export function mountTextures(refreshOnly=false){
     meshSel.onchange = ()=> applyMatUI(selectedMesh());
     if (meshes.length) applyMatUI(selectedMesh());
 
-    // Texture uploads
     container.querySelectorAll('.upload-texture-btn').forEach(btn=>{
       btn.addEventListener('click', e=>{
         const mesh = selectedMesh();
