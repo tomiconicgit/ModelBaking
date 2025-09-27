@@ -330,10 +330,13 @@ function updateHud(worldX, worldZ){
 let renderer, scene, camera, controls, pmremGen, envTex;
 const clock = new THREE.Clock();
 const gltfLoader = new GLTFLoader();
+// DRACO: use the GLTF-specific build path to avoid init errors
 const draco = new DRACOLoader();
-draco.setDecoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/');
+draco.setDecoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/gltf/');
 gltfLoader.setDRACOLoader(draco);
+// Meshopt
 gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+
 const textureLoader = new THREE.TextureLoader();
 
 const models = {};
@@ -378,8 +381,8 @@ buildGameGrid();
 /* ================== Core 3D Setup ================== */
 function init() {
   scene = new THREE.Scene();
-  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(viewerContainer.clientWidth || window.innerWidth, viewerContainer.clientHeight || Math.round(window.innerHeight*0.55));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -477,9 +480,10 @@ function buildGameGrid(){
 
 /* ================== Cursor snapping ================== */
 renderer.domElement.addEventListener('pointermove', (e)=>{
+  const rect = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(
-    (e.offsetX / renderer.domElement.clientWidth) * 2 - 1,
-    -(e.offsetY / renderer.domElement.clientHeight) * 2 + 1
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
   );
   raycaster.setFromCamera(ndc, camera);
   const p = new THREE.Vector3();
@@ -547,65 +551,60 @@ function setupEventListeners() {
 }
 
 /* ================== Model handling ================== */
-function handleModelLoad(e){
+async function handleModelLoad(e){
   const files = e.target.files;
   if (!files.length) return;
+
   for (const file of files) {
-    const reader = new FileReader();
-    reader.onload = ev => {
+    try {
+      const buffer = await file.arrayBuffer(); // more robust than FileReader for modules/workers
       log('Parsing:', file.name, file.size + ' bytes');
-      gltfLoader.parse(
-        ev.target.result,
-        '',
-        (gltf) => {
-          const id = `model-${modelIdCounter++}`;
-          const stats = calculateModelStats(gltf.scene);
-          const skeletonPresent = hasSkeleton(gltf.scene);
 
-          let skeletonHelper = null;
-          if (skeletonPresent) {
-            skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
-            skeletonHelper.visible = false;
-            scene.add(skeletonHelper);
+      const gltf = await gltfLoader.parseAsync(buffer, '');
+      const id = `model-${modelIdCounter++}`;
+      const stats = calculateModelStats(gltf.scene);
+      const skeletonPresent = hasSkeleton(gltf.scene);
+
+      let skeletonHelper = null;
+      if (skeletonPresent) {
+        skeletonHelper = new THREE.SkeletonHelper(gltf.scene);
+        skeletonHelper.visible = false;
+        scene.add(skeletonHelper);
+      }
+
+      gltf.scene.traverse(o=>{
+        if (o.isMesh){
+          o.castShadow = true;
+          o.receiveShadow = true;
+          if (!o.material.isMeshStandardMaterial){
+            o.material = new THREE.MeshStandardMaterial({
+              color: (o.material?.color?.clone()) || new THREE.Color(0xffffff),
+              metalness: 0.1, roughness: 0.85
+            });
           }
-
-          gltf.scene.traverse(o=>{
-            if (o.isMesh){
-              o.castShadow = true;
-              o.receiveShadow = true;
-              if (!o.material.isMeshStandardMaterial){
-                o.material = new THREE.MeshStandardMaterial({
-                  color: (o.material?.color?.clone()) || new THREE.Color(0xffffff),
-                  metalness: 0.1, roughness: 0.85
-                });
-              }
-            }
-          });
-
-          models[id] = {
-            gltf,
-            mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
-            animation: null,
-            skeletonHelper,
-            fileInfo: { name:file.name, size:file.size, polygons:stats.polygons, vertices:stats.vertices }
-          };
-
-          scene.add(gltf.scene);
-
-          if (!activeModelId) {
-            setActiveModel(id);
-            frameObject(gltf.scene);
-          }
-          updateAllPanels();
-          log('Loaded:', file.name, `P:${stats.polygons} V:${stats.vertices}`);
-        },
-        (error) => {
-          log('GLTF parse error:', error?.message || error);
-          alert(`Failed to load "${file.name}" (see Logs).`);
         }
-      );
-    };
-    reader.readAsArrayBuffer(file);
+      });
+
+      models[id] = {
+        gltf,
+        mixer: skeletonPresent ? new THREE.AnimationMixer(gltf.scene) : null,
+        animation: null,
+        skeletonHelper,
+        fileInfo: { name:file.name, size:file.size, polygons:stats.polygons, vertices:stats.vertices }
+      };
+
+      scene.add(gltf.scene);
+
+      if (!activeModelId) {
+        setActiveModel(id);
+        frameObject(gltf.scene);
+      }
+      updateAllPanels();
+      log('Loaded:', file.name, `P:${stats.polygons} V:${stats.vertices}`);
+    } catch (error) {
+      log('GLTF parse error:', error?.message || error);
+      alert(`Failed to load "${file.name}". See Logs for details.`);
+    }
   }
   modelInput.value = '';
 }
@@ -721,7 +720,6 @@ function updateTransformPanel() {
 
   const s = model.gltf.scene;
   uniformBaselineScale = s.scale.clone(); // baseline for uniform scale factor
-
   const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
   const sliderRow = (id, label, value, min, max, step, decimals=2) => `
@@ -814,16 +812,13 @@ function updateTransformPanel() {
         const f = val;
         const base = uniformBaselineScale || scn.scale.clone();
         scn.scale.set(base.x*f, base.y*f, base.z*f);
-        // Also reflect new per-axis numbers in the other scale rows (for visual sync)
+        // Sync per-axis UI
         const rows = wrapper.querySelectorAll('#transform-scale .slider-row');
         rows.forEach(r=>{
-          const axis = r.dataset.row; // scl-x / scl-y / scl-z
-          const axisChar = axis.slice(-1); // x,y,z
-          const newVal = (axisChar==='x'?scn.scale.x:(axisChar==='y'?scn.scale.y:scn.scale.z));
-          const rr = r.querySelector('.rng');
-          const nn = r.querySelector('.num');
-          rr.value = newVal;
-          setNumValue(nn, newVal, 3);
+          const axis = r.dataset.row.slice(-1); // x/y/z
+          const v = axis==='x'?scn.scale.x:axis==='y'?scn.scale.y:scn.scale.z;
+          r.querySelector('.rng').value = v;
+          setNumValue(r.querySelector('.num'), v, 3);
         });
       }
     };
@@ -1014,22 +1009,22 @@ function toggleRigVisibility() {
 }
 
 /* --- Animation --- */
-function handleAnimationLoad(e) {
+async function handleAnimationLoad(e) {
   const file = e.target.files[0];
   const model = models[activeModelId];
   if (!file || !model || !model.mixer) { alert("Select an active model with a skeleton first."); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    gltfLoader.parse(ev.target.result, '', (gltf) => {
-      if (!gltf.animations.length) { alert('This file has no animations.'); return; }
-      removeAnimation();
-      const clip = gltf.animations[0];
-      const action = model.mixer.clipAction(clip);
-      model.animation = { clip, action };
-      updateDashboardPanel();
-    }, (err)=>{ log('Anim parse error:', err?.message || err); alert('Animation load failed.'); });
-  };
-  reader.readAsArrayBuffer(file);
+  try {
+    const buffer = await file.arrayBuffer();
+    const gltf = await gltfLoader.parseAsync(buffer, '');
+    if (!gltf.animations.length) { alert('This file has no animations.'); return; }
+    removeAnimation();
+    const clip = gltf.animations[0];
+    const action = model.mixer.clipAction(clip);
+    model.animation = { clip, action };
+    updateDashboardPanel();
+  } catch (err) {
+    log('Anim parse error:', err?.message || err); alert('Animation load failed.');
+  }
   animationInput.value = '';
 }
 function removeAnimation(){ const m = models[activeModelId]; if (m && m.animation){ m.mixer.stopAllAction(); m.mixer.uncacheClip(m.animation.clip); m.animation = null; updateDashboardPanel(); } }
@@ -1054,6 +1049,65 @@ function handleTextureLoad(e) {
     alert(`Applied ${type}.`); URL.revokeObjectURL(url);
   });
   textureInput.value = '';
+}
+
+/* --- Bone Connection --- */
+function openBoneConnectModal(uuid) {
+  meshToConnect = scene.getObjectByProperty('uuid', uuid);
+  if (!meshToConnect) return;
+
+  const modal = document.getElementById('bone-connect-modal');
+  document.getElementById('bone-connect-mesh-name').textContent = `"${meshToConnect.name || '(unnamed)'}"`;
+  const targetModelSelect = document.getElementById('bone-connect-target-model');
+
+  const otherModels = Object.entries(models).filter(([id, model]) => {
+    if (id === activeModelId) return false;
+    let hasSkel = false; model.gltf.scene.traverse(o => { if (o.isSkinnedMesh || o.isBone) hasSkel = true; });
+    return hasSkel;
+  });
+
+  if (!otherModels.length) return alert("No other models with skeletons available.");
+
+  targetModelSelect.innerHTML = otherModels.map(([id, model]) => `<option value="${id}">${model.fileInfo.name}</option>`).join('');
+  populateBoneConnectBones();
+  modal.classList.remove('hidden');
+}
+function populateBoneConnectBones(){
+  const targetModelId = document.getElementById('bone-connect-target-model').value;
+  const targetModel = models[targetModelId]; if (!targetModel) return;
+  const bones = []; targetModel.gltf.scene.traverse(o => { if (o.isBone) bones.push(o); });
+  const sel = document.getElementById('bone-connect-target-bone');
+  sel.innerHTML = bones.map(b => `<option value="${b.uuid}">${b.name || b.uuid}</option>`).join('');
+}
+function confirmBoneConnection(){
+  const boneUUID = document.getElementById('bone-connect-target-bone').value;
+  const bone = scene.getObjectByProperty('uuid', boneUUID);
+  if (meshToConnect && bone) { bone.attach(meshToConnect); alert(`Connected "${meshToConnect.name || '(unnamed)'}" → "${bone.name || bone.uuid}"`); document.getElementById('bone-connect-modal').classList.add('hidden'); updateMeshPanel(); }
+  else alert('Connection failed.');
+}
+
+/* --- Exporting --- */
+function openExportModal() {
+  if (!Object.keys(models).length) return alert("No models to export.");
+  const select = document.getElementById('export-model-select');
+  select.innerHTML = Object.entries(models).map(([id, m]) => `<option value="${id}">${m.fileInfo.name}</option>`).join('');
+  select.value = activeModelId || select.options[0].value;
+  const currentName = models[select.value].fileInfo.name.replace(/\.glb$/i,'');
+  document.getElementById('export-filename-input').value = `${currentName}_edited`;
+  document.getElementById('export-modal').classList.remove('hidden');
+}
+function exportGLB() {
+  const id = document.getElementById('export-model-select').value;
+  const m = models[id];
+  let filename = document.getElementById('export-filename-input').value.trim();
+  if (!m) return alert("Selected model not found.");
+  if (!filename) return alert("Provide a filename.");
+  if (!/\.glb$/i.test(filename)) filename += '.glb';
+
+  const exporter = new GLTFExporter();
+  const options = { binary:true, animations: m.animation ? [m.animation.clip] : m.gltf.animations };
+  exporter.parse(m.gltf.scene, (result) => saveArrayBuffer(result, filename), (error) => { log('Export error:', error); alert('Export failed.'); }, options);
+  document.getElementById('export-modal').classList.add('hidden');
 }
 
 /* ---------- Utils ---------- */
