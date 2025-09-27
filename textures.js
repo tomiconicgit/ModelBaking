@@ -10,7 +10,7 @@ export function mountTextures(refreshOnly=false){
   function render(){
     const container = document.getElementById('texture-panel-content');
     const m = App.models[App.activeModelId];
-    if (!m){ container.innerHTML = '<div style="opacity:.7">Select an active model from Tabs.</div>'; return; }
+    if (!m){ container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model from Tabs.</div>'; return; }
 
     const meshes=[]; m.gltf.scene.traverse(o=>{ if (o.isMesh) meshes.push(o); });
     const textureTypes = [
@@ -21,15 +21,15 @@ export function mountTextures(refreshOnly=false){
 
     container.innerHTML = `
       <div class="form-group">
-        <label for="texture-mesh-select">Target Mesh:</label>
-        <select id="texture-mesh-select" ${!meshes.length ? 'disabled' : ''} style="width:100%;height:44px;border-radius:10px;border:1px solid #2a2f36;background:#232933;color:#fff;padding:0 10px">
+        <label for="texture-mesh-select">Target Mesh</label>
+        <select id="texture-mesh-select" ${!meshes.length ? 'disabled' : ''}>
           ${meshes.length ? meshes.map(ms => `<option value="${ms.uuid}">${ms.name || ms.uuid}</option>`).join('') : '<option>No meshes found in model</option>'}
         </select>
       </div>
-      <div id="material-controls-wrapper" style="margin-bottom:14px"></div>
+      <div id="material-controls-wrapper" style="margin-bottom:24px; padding-bottom: 24px; border-bottom:1px solid var(--border)"></div>
 
-      <h4 style="margin-top: 1rem;">Texture Maps</h4>
-      <div class="button-group">
+      <h3 class="panel-title" style="margin-bottom:16px;">Upload Texture Maps</h3>
+      <div class="button-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
         ${textureTypes.map(t => `<button class="button ghost upload-texture-btn" data-type="${t.key}">${t.name}</button>`).join('')}
       </div>
     `;
@@ -41,54 +41,48 @@ export function mountTextures(refreshOnly=false){
     const applyMatUI = (mesh)=>{
       const wrapper = document.getElementById('material-controls-wrapper');
       if (!mesh || !mesh.material || !mesh.material.isMeshStandardMaterial) {
-        wrapper.innerHTML = '<div style="opacity:.7;padding:.5rem 0">Selected mesh has no standard material properties to edit.</div>';
+        wrapper.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding:20px 0;">Selected mesh has no editable material properties.</div>';
         return;
       }
       const mat = mesh.material;
       wrapper.innerHTML = `
         <div class="material-group">
-          <h4>Material Properties</h4>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
-            <label for="mat-color">Base Color</label>
-            <input type="color" id="mat-color" value="#${mat.color.getHexString()}">
+          <h3 class="panel-title">Material Properties</h3>
+          
+          <div class="slider-row">
+            <label for="mat-color">Color</label>
+            <input type="color" id="mat-color" value="#${mat.color.getHexString()}" style="height:44px; padding:4px; border-radius:var(--radius-sm); background:transparent;">
           </div>
-
-          <div style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-            <label for="mat-metalness">Metalness</label>
-            <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
+          <div class="slider-row">
+            <label>Metal</label>
             <span id="mat-metalness-val">${mat.metalness.toFixed(2)}</span>
+            <input type="range" id="mat-metalness" min="0" max="1" step="0.01" value="${mat.metalness}">
           </div>
-
-          <div style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-            <label for="mat-roughness">Roughness</label>
-            <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
+          <div class="slider-row">
+            <label>Rough</label>
             <span id="mat-roughness-val">${mat.roughness.toFixed(2)}</span>
+            <input type="range" id="mat-roughness" min="0" max="1" step="0.01" value="${mat.roughness}">
           </div>
 
-          <h4>Emissive</h4>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.75rem;">
+          <h3 class="panel-title" style="margin-top:24px;">Emissive</h3>
+          <div class="slider-row">
             <label for="mat-emissive">Color</label>
-            <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}">
+            <input type="color" id="mat-emissive" value="#${mat.emissive.getHexString()}" style="height:44px; padding:4px; border-radius:var(--radius-sm); background:transparent;">
           </div>
-
-          <div style="display:grid;grid-template-columns:100px 1fr 60px;gap:1rem;margin-bottom:.75rem;">
-            <label for="mat-emissive-intensity">Intensity</label>
-            <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
+          <div class="slider-row">
+            <label>Intensity</label>
             <span id="mat-emissive-intensity-val">${mat.emissiveIntensity.toFixed(2)}</span>
+            <input type="range" id="mat-emissive-intensity" min="0" max="5" step="0.05" value="${mat.emissiveIntensity}">
           </div>
         </div>
       `;
 
-      // single delegated listener for this wrapper
       wrapper.oninput = (e)=>{
         const meshNow = selectedMesh();
         if (!meshNow?.material) return;
-        const matNow = meshNow.material; // live material (might have changed selection)
+        const matNow = meshNow.material;
         switch (e.target.id) {
-          case 'mat-color':
-            matNow.color.set(e.target.value);
-            break;
+          case 'mat-color': matNow.color.set(e.target.value); break;
           case 'mat-metalness':
             matNow.metalness = parseFloat(e.target.value);
             wrapper.querySelector('#mat-metalness-val').textContent = matNow.metalness.toFixed(2);
@@ -97,9 +91,7 @@ export function mountTextures(refreshOnly=false){
             matNow.roughness = parseFloat(e.target.value);
             wrapper.querySelector('#mat-roughness-val').textContent = matNow.roughness.toFixed(2);
             break;
-          case 'mat-emissive':
-            matNow.emissive.set(e.target.value);
-            break;
+          case 'mat-emissive': matNow.emissive.set(e.target.value); break;
           case 'mat-emissive-intensity':
             matNow.emissiveIntensity = parseFloat(e.target.value);
             wrapper.querySelector('#mat-emissive-intensity-val').textContent = matNow.emissiveIntensity.toFixed(2);
