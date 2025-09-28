@@ -49,13 +49,13 @@ export function mountTabs(refreshOnly=false){
     list.querySelectorAll('.btn-activate').forEach(b=> b.onclick = ()=>{ App.setActiveModel(b.dataset.id); App.events.dispatchEvent(new Event('panels:refresh-all')); });
     list.querySelectorAll('.btn-close').forEach(b=> b.onclick = ()=> removeModel(b.dataset.id));
     
+    // ATTACH MODEL → attach anchor & SNAP
     list.querySelectorAll('.btn-attach').forEach(b => b.addEventListener('click', e => {
       const modelIdToAttach = e.target.dataset.id;
       const modelToAttach = App.models[modelIdToAttach];
       if (!modelToAttach) return;
 
       const otherModels = modelsWithSkeletons.filter(([id]) => id !== modelIdToAttach);
-      
       if (!otherModels.length) {
         return alert('No other models with skeletons are available to attach to.');
       }
@@ -81,18 +81,20 @@ export function mountTabs(refreshOnly=false){
       }
 
       modelSelect.onchange = populateBones;
-      
+      populateBones();
+
       confirmBtn.onclick = () => {
         const boneUuid = boneSelect.value;
-        const modelId = modelSelect.value;
-        if (!boneUuid || !modelId) return alert('Please select a target bone.');
+        const targetModelId = modelSelect.value;
+        if (!boneUuid || !targetModelId) return alert('Please select a target bone.');
 
-        const targetModel = App.models[modelId];
+        const targetModel = App.models[targetModelId];
         const targetBone = targetModel.gltf.scene.getObjectByProperty('uuid', boneUuid);
-
         if (!targetBone) return alert('Target bone not found.');
-        
-        App.reparentModelToBone(modelIdToAttach, targetBone);
+
+        // SNAP attach the whole model anchor so it aligns to bone
+        App.attachObjectToBone(modelToAttach.anchor, targetBone, { mode: 'snap' });
+
         modal.classList.add('hidden');
       };
     
@@ -100,7 +102,6 @@ export function mountTabs(refreshOnly=false){
         modal.classList.add('hidden');
       };
 
-      populateBones();
       modal.classList.remove('hidden');
     }));
   }
