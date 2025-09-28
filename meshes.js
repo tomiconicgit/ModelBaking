@@ -92,6 +92,7 @@ export function mountMeshes(refreshOnly = false) {
       }
     }));
 
+    // CONNECT → attach & SNAP
     list.querySelectorAll('.btn-connect').forEach(b => b.addEventListener('click', e => {
       const mesh = find(e);
       if (!mesh) return;
@@ -131,8 +132,8 @@ export function mountMeshes(refreshOnly = false) {
       }
 
       modelSelect.onchange = populateBones;
-      
-      // Use .onclick for simple one-time modal actions
+      populateBones();
+
       confirmBtn.onclick = () => {
         const boneUuid = boneSelect.value;
         const modelId = modelSelect.value;
@@ -140,10 +141,11 @@ export function mountMeshes(refreshOnly = false) {
 
         const targetModel = App.models[modelId];
         const targetBone = targetModel.gltf.scene.getObjectByProperty('uuid', boneUuid);
-
         if (!targetBone) return alert('Target bone not found.');
-        
-        App.reparentMeshToBone(mesh.uuid, targetBone);
+
+        // SNAP attach
+        App.attachObjectToBone(mesh, targetBone, { mode: 'snap' });
+
         modal.classList.add('hidden');
       };
     
@@ -151,28 +153,27 @@ export function mountMeshes(refreshOnly = false) {
         modal.classList.add('hidden');
       };
 
-      populateBones();
       modal.classList.remove('hidden');
     }));
 
     list.querySelectorAll('.mesh-card').forEach(card => {
-        const slider = card.querySelector('.simplify-slider');
-        const label = card.querySelector('.simplify-ratio-label');
-        const button = card.querySelector('.btn-simplify');
-        const uuid = card.dataset.uuid;
+      const slider = card.querySelector('.simplify-slider');
+      const label = card.querySelector('.simplify-ratio-label');
+      const button = card.querySelector('.btn-simplify');
+      const uuid = card.dataset.uuid;
 
-        slider.addEventListener('input', () => {
-            const ratio = parseFloat(slider.value);
-            label.textContent = `${(ratio * 100).toFixed(0)}%`;
-        });
+      slider.addEventListener('input', () => {
+        const ratio = parseFloat(slider.value);
+        label.textContent = `${(ratio * 100).toFixed(0)}%`;
+      });
 
-        button.addEventListener('click', () => {
-            const ratio = parseFloat(slider.value);
-            if (!confirm(`This will permanently modify the mesh for this session. Simplify to ${(ratio*100).toFixed(0)}%?`)) {
-                return;
-            }
-            App.simplifyMesh(uuid, ratio);
-        });
+      button.addEventListener('click', () => {
+        const ratio = parseFloat(slider.value);
+        if (!confirm(`This will permanently modify the mesh for this session. Simplify to ${(ratio*100).toFixed(0)}%?`)) {
+          return;
+        }
+        App.simplifyMesh(uuid, ratio);
+      });
     });
 
     function find(e) {
