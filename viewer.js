@@ -60,7 +60,6 @@ let __initialized = false;
   await initViewer();
 })();
 
-
 /* -------------------------------------------------------
    Init (idempotent)
 ------------------------------------------------------- */
@@ -221,7 +220,7 @@ function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
@@ -444,33 +443,23 @@ App.bakeOrigin = function bakeOrigin(mode='center'){
 };
 
 /* -------------------------------------------------------
-   MESH ATTACHMENT LOGIC
+   MESH ATTACHMENT LOGIC (existing)
 ------------------------------------------------------- */
 App.reparentMeshToBone = function(meshUuid, targetBone) {
-    const activeModel = App.getActive();
-    if (!activeModel) return;
-
-    const mesh = activeModel.gltf.scene.getObjectByProperty('uuid', meshUuid);
-    if (!mesh) return;
-
-    // Use THREE.js's built-in 'attach' method.
-    // It handles the complex matrix transformations required to move an object
-    // between parents without changing its world position, rotation, or scale.
-    targetBone.attach(mesh);
-
-    // The mesh's local transform is now relative to the bone.
-    App.events.dispatchEvent(new Event('panels:refresh-all'));
+  const m = App.getActive();
+  if (!m) return;
+  const mesh = m.gltf.scene.getObjectByProperty('uuid', meshUuid);
+  if (!mesh) return;
+  targetBone.attach(mesh);
+  App.events.dispatchEvent(new Event('panels:refresh-all'));
 };
 
 App.reparentModelToBone = function(modelIdToAttach, targetBone) {
-    const modelToAttach = App.models[modelIdToAttach];
-    if (!modelToAttach) return;
-
-    // We attach the model's main anchor group, which contains the scene and helpers.
-    const anchor = modelToAttach.anchor;
-    targetBone.attach(anchor);
-
-    App.events.dispatchEvent(new Event('panels:refresh-all'));
+  const modelToAttach = App.models[modelIdToAttach];
+  if (!modelToAttach) return;
+  const anchor = modelToAttach.anchor;
+  targetBone.attach(anchor);
+  App.events.dispatchEvent(new Event('panels:refresh-all'));
 };
 
 /* -------------------------------------------------------
@@ -485,11 +474,11 @@ App.simplifyMesh = function(meshUuid, ratio) {
     return alert('Simplification requires an indexed geometry. This mesh cannot be simplified.');
   }
   if (!mesh.userData.originalGeometry) {
-      mesh.userData.originalGeometry = mesh.geometry.clone();
+    mesh.userData.originalGeometry = mesh.geometry.clone();
   }
   if (ratio >= 0.99) {
-      mesh.geometry.dispose();
-      mesh.geometry = mesh.userData.originalGeometry.clone();
+    mesh.geometry.dispose();
+    mesh.geometry = mesh.userData.originalGeometry.clone();
   } else {
     const modifier = new SimplifyModifier();
     const originalCount = mesh.userData.originalGeometry.index.count / 3;
@@ -498,7 +487,7 @@ App.simplifyMesh = function(meshUuid, ratio) {
     mesh.geometry.dispose();
     mesh.geometry = simplifiedGeometry;
   }
-  const newStats = calculateModelStats(m.gltf.scene);
+  const newStats = App.calculateModelStats(m.gltf.scene);
   m.fileInfo.polygons = newStats.polygons;
   m.fileInfo.vertices = newStats.vertices;
   App.events.dispatchEvent(new Event('panels:refresh-all'));
@@ -516,8 +505,58 @@ export function formatBytes(bytes, decimals = 2) {
 }
 App.formatBytes = formatBytes;
 
-/* -------------------------------------------------------
-   Tiny helpers exported for older modules
-------------------------------------------------------- */
 export function getScene(){ return App.scene; }
 export const rebuildGrid = buildFloorAndGrid; // alias
+
+/* -------------------------------------------------------
+   NEW: Bind-pose + TRS utilities (for bone-local export)
+------------------------------------------------------- */
+App.withBindPoseForModel = async function withBindPoseForModel(modelId, fn) {
+  const m = App.models[modelId];
+  if (!m) return fn?.();
+  const paused = [];
+  if (m.mixer && m.animation?.action) {
+    const a = m.animation.action;
+    if (a.isRunning() && !a.paused) { a.paused = true; paused.push(a); }
+  }
+  m.gltf.scene.traverse(o => { if (o.isSkinnedMesh) o.skeleton?.pose(); });
+  try { return await fn?.(); }
+  finally { paused.forEach(a => a.paused = false); }
+};
+
+App.computeBoneLocalTRS = function computeBoneLocalTRS(object3D, bone) {
+  object3D.updateWorldMatrix(true, false);
+  bone.updateWorldMatrix(true, false);
+  const worldM = object3D.matrixWorld.clone();
+  const invBoneWorld = bone.matrixWorld.clone().invert();
+  const localM = invBoneWorld.multiply(worldM);
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scl = new THREE.Vector3();
+  localM.decompose(pos, quat, scl);
+  return {
+    position: pos.toArray(),
+    rotation: [quat.x, quat.y, quat.z, quat.w],
+    scale: scl.toArray(),
+    boneName: bone.name,
+    space: 'bone-local'
+  };
+};
+
+/* -------------------------------------------------------
+   NEW: Attach & SNAP helper (what you asked for)
+------------------------------------------------------- */
+App.attachObjectToBone = function attachObjectToBone(object3D, targetBone, { mode = 'snap' } = {}) {
+  if (!object3D || !targetBone) return;
+  if (mode === 'preserve') {
+    targetBone.attach(object3D); // keep world transform
+  } else {
+    // SNAP: zero local TRS so it sits at bone origin/orientation
+    targetBone.add(object3D);
+    object3D.position.set(0, 0, 0);
+    object3D.quaternion.identity();
+    object3D.scale.set(1, 1, 1);
+    object3D.updateMatrix();
+  }
+  App.events.dispatchEvent(new Event('panels:refresh-all'));
+};
