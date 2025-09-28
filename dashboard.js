@@ -1,6 +1,7 @@
 // dashboard.js
 import { App, formatBytes } from './viewer.js';
 import './export.js'; // registers modal handlers
+import * as THREE from 'three'; // Import THREE to use its utils
 
 export function mountDashboard(refreshOnly=false){
   const el = document.getElementById('dashboard-panel');
@@ -47,13 +48,12 @@ export function mountDashboard(refreshOnly=false){
 
     // --- MODIFIED CODE START ---
     document.getElementById('copy-data-btn').addEventListener('click', () => {
-      const m = App.models[App.activeModelId]; if (!m) return;
-      const s = m.anchor; // Target the anchor
+      const m = App.models[App.activeModelId];
+      if (!m) return;
 
-      // Decompose the quaternion into Euler angles using the same 'YXZ' order as the transform panel
+      const s = m.anchor;
       const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
       
-      // Use THREE.MathUtils to convert radians to degrees for easy reading and use
       const rotationInDegrees = [
         parseFloat(THREE.MathUtils.radToDeg(euler.x).toFixed(2)),
         parseFloat(THREE.MathUtils.radToDeg(euler.y).toFixed(2)),
@@ -64,15 +64,56 @@ export function mountDashboard(refreshOnly=false){
         position: s.position.toArray().map(v => parseFloat(v.toFixed(4))),
         scale: s.scale.toArray().map(v => parseFloat(v.toFixed(4))),
         rotation: rotationInDegrees,
-        rotationOrder: 'YXZ' // Explicitly include the rotation order
+        rotationOrder: 'YXZ'
       };
       
       const dataString = JSON.stringify(data, null, 2);
-      navigator.clipboard.writeText(dataString).then(()=> {
-        // Show the copied data in an alert for confirmation
-        alert('Model transform data copied to clipboard:\n\n' + dataString);
-      });
+
+      // --- Robust Clipboard Logic ---
+      if (navigator.clipboard && window.isSecureContext) {
+        // Modern async method (requires HTTPS or localhost)
+        navigator.clipboard.writeText(dataString)
+          .then(() => alert('✅ Transform data copied to clipboard!'))
+          .catch(err => {
+            console.error('Failed to copy with modern API:', err);
+            fallbackCopyTextToClipboard(dataString);
+          });
+      } else {
+        // Fallback for insecure contexts (like file://) or older browsers
+        fallbackCopyTextToClipboard(dataString);
+      }
     });
+
+    function fallbackCopyTextToClipboard(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      
+      // Avoid scrolling to bottom
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+    
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+    
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          alert('✅ Transform data copied (using fallback method)!');
+        } else {
+          alert('❌ Copying failed. Please copy from the browser console.');
+          console.log('Fallback copy failed. Data to copy manually:', text);
+        }
+      } catch (err) {
+        alert('❌ An error occurred during copy. Please copy from the browser console.');
+        console.error('Fallback copy error', err);
+        console.log('Data to copy manually:', text);
+      }
+    
+      document.body.removeChild(textArea);
+    }
     // --- MODIFIED CODE END ---
 
 
