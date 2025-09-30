@@ -158,19 +158,19 @@ export function mountTextures(refreshOnly=false){
         <div class="slider-row" style="margin:0;"><label>Intensity</label><span id="mat-emissive-intensity-val" class="slider-value"></span><input type="range" id="mat-emissive-intensity" min="0" max="10" step="0.05"></div>
       </div>
 
-      <div id="procedural-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
-        <h3 class="panel-title">Procedural Maps & Effects</h3>
-        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Load textures to add procedural detail like bumps, noise, and custom color gradients.</p>
+      <div id="texture-map-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
+        <h3 class="panel-title">Texture Maps</h3>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Load PBR (Physically Based Rendering) texture maps to control material properties.</p>
         
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom: 24px;">
-            <button class="button ghost texture-load-btn" data-map="bumpMap">Load Bump</button>
+            <button class="button ghost texture-load-btn" data-map="map">Load Albedo</button>
             <button class="button ghost texture-load-btn" data-map="normalMap">Load Normal</button>
-            <button class="button ghost texture-load-btn" data-map="roughnessMap">Load Noise</button>
-            <button class="button ghost texture-load-btn" data-map="gradientMap">Load Gradient</button>
+            <button class="button ghost texture-load-btn" data-map="roughnessMap">Load Roughness</button>
+            <button class="button ghost texture-load-btn" data-map="metalnessMap">Load Metalness</button>
+            <button class="button ghost texture-load-btn" data-map="aoMap">Load AO</button>
         </div>
         
         <div style="display: grid; gap: 8px;">
-            <div class="slider-row" style="margin:0;"><label>Bump Strength</label><span id="mat-bumpscale-val" class="slider-value"></span><input type="range" id="mat-bumpscale" min="0" max="2" step="0.01"></div>
             <div class="slider-row" style="margin:0;"><label>Normal X</label><span id="mat-normalx-val" class="slider-value"></span><input type="range" id="mat-normalx" min="0" max="2" step="0.01"></div>
             <div class="slider-row" style="margin:0;"><label>Normal Y</label><span id="mat-normaly-val" class="slider-value"></span><input type="range" id="mat-normaly" min="0" max="2" step="0.01"></div>
         </div>
@@ -226,7 +226,7 @@ export function mountTextures(refreshOnly=false){
       const controls = {
         'mat-metalness': mat.metalness, 'mat-roughness': mat.roughness,
         'mat-envmap-intensity': mat.envMapIntensity, 'mat-emissive-intensity': mat.emissiveIntensity,
-        'mat-bumpscale': mat.bumpScale, 'mat-normalx': mat.normalScale.x, 'mat-normaly': mat.normalScale.y,
+        'mat-normalx': mat.normalScale.x, 'mat-normaly': mat.normalScale.y,
         'mat-glint-intensity': mat.clearcoat || 0, 'mat-glint-roughness': mat.clearcoatRoughness || 0,
         'mat-glint-sharpness': mat.clearcoatNormalScale?.x || 1.0,
       };
@@ -269,7 +269,6 @@ export function mountTextures(refreshOnly=false){
           case 'mat-roughness': mat.roughness = value; break;
           case 'mat-envmap-intensity': mat.envMapIntensity = value; break;
           case 'mat-emissive-intensity': mat.emissiveIntensity = value; break;
-          case 'mat-bumpscale': mat.bumpScale = value; break;
           case 'mat-normalx': mat.normalScale.x = value; break;
           case 'mat-normaly': mat.normalScale.y = value; break;
           case 'mat-glint-intensity': mat.clearcoat = value; mat.needsUpdate = true; break;
