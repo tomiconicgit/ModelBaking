@@ -178,14 +178,15 @@ export function mountTextures(refreshOnly=false){
 
       <div id="gold-ore-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
         <h3 class="panel-title">Gold Ore Effects ✨</h3>
-        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Procedurally add gold veins and metallic glints to the material.</p>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Add veins and glints. Note: Scale/Mix sliders require pressing the button below to apply changes.</p>
         
         <div style="display: grid; gap: 8px;">
             <h4 style="margin: 8px 0 0; font-size: 1rem; color: var(--fg-light);">Metallic Glints</h4>
             <div class="slider-row" style="margin:0;"><label>Glint Intensity</label><span id="mat-glint-intensity-val" class="slider-value"></span><input type="range" id="mat-glint-intensity" min="0" max="1" step="0.01" value="0"></div>
             <div class="slider-row" style="margin:0;"><label>Glint Roughness</label><span id="mat-glint-roughness-val" class="slider-value"></span><input type="range" id="mat-glint-roughness" min="0" max="1" step="0.01" value="0"></div>
+            <div class="slider-row" style="margin:0;"><label>Glint Sharpness</label><span id="mat-glint-sharpness-val" class="slider-value"></span><input type="range" id="mat-glint-sharpness" min="0" max="2" step="0.05" value="1"></div>
             <div class="slider-row" style="margin:0;"><label>Glint Scale</label><span id="mat-glint-scale-val" class="slider-value"></span><input type="range" id="mat-glint-scale" min="1" max="128" step="1" value="32"></div>
-            <button id="apply-glints-btn" class="button ghost" style="margin-top:8px;">Apply/Update Glints</button>
+            <button id="apply-glints-btn" class="button ghost" style="margin-top:8px;">Apply/Update Glint Texture</button>
         </div>
 
         <div style="display: grid; gap: 8px; margin-top:24px; padding-top:24px; border-top: 1px solid var(--border);">
@@ -195,7 +196,7 @@ export function mountTextures(refreshOnly=false){
               <input type="color" id="mat-vein-color" value="#FFD700" style="height:44px; padding:4px; border: 1px solid var(--border); border-radius:var(--radius-sm); background:transparent;">
             </div>
             <div class="slider-row" style="margin:0;"><label>Vein Mix</label><span id="mat-vein-mix-val" class="slider-value"></span><input type="range" id="mat-vein-mix" min="0" max="1" step="0.01" value="0.5"></div>
-            <div class="slider-row" style="margin:0;"><label>Vein Scale</label><span id="mat-vein-scale-val" class="slider-value"></span><input type="range" id="mat-vein-scale" min="1" max="64" step="1" value="16"></div>
+            <div class="slider-row" style="margin:0;"><label>Vein Scale</label><span id="mat-vein-scale-val" class="slider-value"></span><input type="range" id="mat-vein-scale" min="1" max="256" step="1" value="48"></div>
             <button id="apply-veins-btn" class="button ghost" style="margin-top:8px;">Generate Veins</button>
         </div>
       </div>
@@ -227,6 +228,7 @@ export function mountTextures(refreshOnly=false){
         'mat-envmap-intensity': mat.envMapIntensity, 'mat-emissive-intensity': mat.emissiveIntensity,
         'mat-bumpscale': mat.bumpScale, 'mat-normalx': mat.normalScale.x, 'mat-normaly': mat.normalScale.y,
         'mat-glint-intensity': mat.clearcoat || 0, 'mat-glint-roughness': mat.clearcoatRoughness || 0,
+        'mat-glint-sharpness': mat.clearcoatNormalScale?.x || 1.0,
       };
 
       for (const [id, value] of Object.entries(controls)) {
@@ -272,6 +274,7 @@ export function mountTextures(refreshOnly=false){
           case 'mat-normaly': mat.normalScale.y = value; break;
           case 'mat-glint-intensity': mat.clearcoat = value; mat.needsUpdate = true; break;
           case 'mat-glint-roughness': mat.clearcoatRoughness = value; mat.needsUpdate = true; break;
+          case 'mat-glint-sharpness': mat.clearcoatNormalScale.set(value, value); break;
         }
       };
 
@@ -294,19 +297,20 @@ export function mountTextures(refreshOnly=false){
           if (mat.clearcoatNormalMap) mat.clearcoatNormalMap.dispose();
           mat.clearcoatNormalMap = generateGlintNormalMap(scale);
           mat.needsUpdate = true;
-          alert('Glints updated.');
+          alert('Glint texture updated.');
       });
 
       container.querySelector('#apply-veins-btn').addEventListener('click', () => {
           const mesh = getSelectedMesh();
           if (!mesh || !mesh.material?.isMeshStandardMaterial) return;
           const mat = mesh.material;
+          const baseColor = new THREE.Color(document.getElementById('mat-color').value);
           const veinColor = new THREE.Color(document.getElementById('mat-vein-color').value);
           const scale = parseFloat(document.getElementById('mat-vein-scale').value);
           const mix = parseFloat(document.getElementById('mat-vein-mix').value);
           if (mat.map) mat.map.dispose();
-          mat.map = generateVeinTexture(mat.color.clone(), veinColor, scale, mix);
-          mat.color.set(0xffffff);
+          mat.map = generateVeinTexture(baseColor, veinColor, scale, mix);
+          mat.color.set(0xffffff); // Set base to white so map is not tinted
           mat.needsUpdate = true;
           alert('Veins generated.');
           updateUI();
