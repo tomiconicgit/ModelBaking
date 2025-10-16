@@ -57,7 +57,7 @@ export async function initViewer() {
   controls.enableDamping = true;
   controls.minDistance = 1;
   controls.maxDistance = 1000;
-  controls.maxPolarAngle = Math.PI * 0.9; // Allow looking from below
+  controls.maxPolarAngle = Math.PI * 0.9;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -93,7 +93,7 @@ function buildFloor() {
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 1.0, metalness: 0.0 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI * 0.5;
-  scene.add(floor);
+  App.scene.add(floor); // <-- THIS LINE WAS FIXED
   App.floorMesh = floor;
 }
 
@@ -116,7 +116,6 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
   anchor.add(gltf.scene);
   App.scene.add(anchor);
 
-  // Center the geometry's pivot and place it on the ground (y=0)
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.getCenter(new THREE.Vector3());
   gltf.scene.position.sub(center);
@@ -124,7 +123,6 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
   const finalBox = new THREE.Box3().setFromObject(gltf.scene);
   gltf.scene.position.y -= finalBox.min.y;
   
-  // The anchor itself is placed at the world origin.
   anchor.position.set(0, 0, 0);
 
   let skeletonHelper = null;
@@ -148,7 +146,7 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
   };
   
   App.setActiveModel(id);
-  App.frameObject(anchor); // Frame the new model on load
+  App.frameObject(anchor);
 
   App.events.dispatchEvent(new CustomEvent('panels:refresh-all'));
 };
@@ -170,7 +168,7 @@ App.frameObject = function(object){
   const maxDim = Math.max(size.x, size.y, size.z);
   const fov = App.camera.fov * (Math.PI / 180);
   let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-  cameraZ *= 1.7; // Add a buffer to prevent clipping edges
+  cameraZ *= 1.7;
 
   const newCamPos = new THREE.Vector3(center.x, center.y, center.z + cameraZ);
 
