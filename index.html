@@ -80,12 +80,12 @@
     .panel-title { margin: 0 0 16px; font-size: 1.25rem; }
     .hidden { display: none !important; }
 
-    /* Touch-friendly controls */
     .button {
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--primary); border: none; color: #fff; border-radius: var(--radius-md);
-      padding: 0 20px; font-size: 1rem; font-weight: 600; min-height: 50px;
+      padding: 0 16px; font-size: 0.9rem; font-weight: 600; min-height: 44px;
       transition: background-color .2s ease, transform .1s ease;
+      flex: 1; /* For button groups */
     }
     .button:active { transform: scale(0.97); }
     .button.ghost {
@@ -93,26 +93,26 @@
     }
     .button.accent { background: var(--accent); }
     .button:disabled { opacity: .4; pointer-events: none; }
-    .button-group { display: flex; flex-wrap: wrap; gap: 12px; }
+    .button-group { display: flex; flex-wrap: wrap; gap: 10px; }
     
-    /* Modern Form Controls */
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; font-weight: 500; color: var(--fg-light); margin-bottom: 8px; }
     .form-group select, .form-group input[type=text], .form-group input[type=number] {
-      width: 100%; height: 50px; border-radius: var(--radius-md); border: 1px solid var(--border);
+      width: 100%; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--border);
       background: var(--surface-bg); color: var(--fg); font-size: 1rem; padding: 0 16px;
     }
 
-    /* Transform Sliders */
-    .transform-group { margin-bottom: 24px; }
+    .transform-group { margin-bottom: 20px; }
     .transform-group h4 { margin: 0 0 12px; font-size: 1rem; color: var(--fg-light); }
-    .slider-row { display: grid; grid-template-columns: 20px 1fr 44px 44px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .slider-row { display: grid; grid-template-columns: 20px 1fr 50px; gap: 12px; align-items: center; }
     .slider-row label { font-weight: 700; color: var(--fg); }
-    .num { height: 44px; padding: 0 12px; text-align: right; }
-    .nudge { min-height: 44px; height: 44px; padding: 0; font-size: 1.2rem; background: var(--surface-bg); border: 1px solid var(--border); color: var(--fg); }
-    .slider-row input[type=range] { grid-column: 1 / -1; margin-top: 4px; width: 100%; }
-
-    /* Modals */
+    .slider-row input[type=range] { width: 100%; }
+    .slider-row input[type=number] {
+        width: 100%; height: 38px; padding: 0 8px;
+        text-align: right; border-radius: var(--radius-sm); border: 1px solid var(--border);
+        background: var(--surface-bg); color: var(--fg); font-size: 0.9rem;
+    }
+    
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex;
       align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(8px);
@@ -125,7 +125,6 @@
     .modal h3 { margin: 0 0 10px; font-size: 1.5rem; }
     .modal p { margin: 0 0 20px; color: var(--fg-light); line-height: 1.5; }
 
-    /* --- New Bootstrap Splash --- */
     #bootstrap { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px; z-index: 2000; background: radial-gradient(circle, #111 0%, #000 100%); }
     #brand {
       font-weight: 700; font-size: 38px; letter-spacing: 2px;
@@ -161,31 +160,13 @@
     .s-top    { transform: rotateX(90deg) translateZ(30px); }
     .s-bottom { transform: rotateX(-90deg) translateZ(30px); }
     @keyframes spin3d { to { transform: rotateY(360deg) rotateX(360deg); } }
-    
-    /* --- BEGIN MODIFICATION: Loading Overlay Styles --- */
-    #loading-overlay {
-      position: fixed; inset: 0; z-index: 3000;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 24px; color: var(--fg);
-    }
-    #loading-overlay .spinner {
-      width: 50px; height: 50px;
-      border: 4px solid var(--border);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin-simple 1s linear infinite;
-    }
-    @keyframes spin-simple { to { transform: rotate(360deg); } }
-    /* --- END MODIFICATION --- */
   </style>
 
   <script type="importmap">
   {
     "imports": {
       "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/",
-      "three/addons/exporters/DRACOExporter.js": "https://unpkg.com/three@0.168.0/examples/jsm/exporters/DRACOExporter.js"
+      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
     }
   }
   </script>
@@ -205,17 +186,12 @@
     <button id="copy-err" class="button ghost">Copy Error</button>
   </div>
   
-  <div id="loading-overlay" class="hidden">
-    <div class="spinner"></div>
-    <div id="loading-msg">Processing...</div>
-  </div>
   <div id="app" class="hidden" role="application">
     <div id="viewer3d"><div id="hud">tile: (0,0) • mode: centers • world: (0.00, 0.00)</div></div>
 
     <div id="panel-container">
       <nav id="bottom-navbar">
         <button class="nav-btn active" data-panel="dashboard-panel">Dashboard</button>
-        <button class="nav-btn" data-panel="grid-panel">Grid</button>
         <button class="nav-btn" data-panel="transform-panel">Transform</button>
         <button class="nav-btn" data-panel="mesh-panel">Meshes</button>
         <button class="nav-btn" data-panel="texture-panel">Textures</button>
@@ -223,7 +199,6 @@
       </nav>
       <div id="panel-content">
         <section id="dashboard-panel" class="panel"></section>
-        <section id="grid-panel" class="panel hidden"></section>
         <section id="transform-panel" class="panel hidden"></section>
         <section id="mesh-panel" class="panel hidden"></section>
         <section id="texture-panel" class="panel hidden"></section>
@@ -234,7 +209,7 @@
     <div id="export-modal" class="modal-overlay hidden">
       <div class="modal">
         <h3>Export Model</h3>
-        <p>Select the model to export. All transform and mesh edits will be included. Draco GLB offers the best compression.</p>
+        <p>Select the model and provide a filename. All edits will be included.</p>
         <div style="display:grid; gap:16px">
           <div class="form-group">
             <label for="export-model-select">Model</label>
@@ -247,8 +222,7 @@
         </div>
         <div class="button-group" style="margin-top:24px">
           <button id="cancel-export-btn" class="button ghost" style="flex:1">Cancel</button>
-          <button id="confirm-export-btn" class="button ghost" style="flex:1">Export GLB</button>
-          <button id="confirm-export-draco-btn" class="button" style="flex:1">Export Draco GLB</button>
+          <button id="confirm-export-btn" class="button" style="flex:1">Export GLB</button>
         </div>
       </div>
     </div>
