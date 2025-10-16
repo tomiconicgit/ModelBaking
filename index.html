@@ -161,6 +161,23 @@
     .s-top    { transform: rotateX(90deg) translateZ(30px); }
     .s-bottom { transform: rotateX(-90deg) translateZ(30px); }
     @keyframes spin3d { to { transform: rotateY(360deg) rotateX(360deg); } }
+    
+    /* --- BEGIN MODIFICATION: Loading Overlay Styles --- */
+    #loading-overlay {
+      position: fixed; inset: 0; z-index: 3000;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 24px; color: var(--fg);
+    }
+    #loading-overlay .spinner {
+      width: 50px; height: 50px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin-simple 1s linear infinite;
+    }
+    @keyframes spin-simple { to { transform: rotate(360deg); } }
+    /* --- END MODIFICATION --- */
   </style>
 
   <script type="importmap">
@@ -187,7 +204,11 @@
     <div id="boot-err"></div>
     <button id="copy-err" class="button ghost">Copy Error</button>
   </div>
-
+  
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+    <div id="loading-msg">Processing...</div>
+  </div>
   <div id="app" class="hidden" role="application">
     <div id="viewer3d"><div id="hud">tile: (0,0) • mode: centers • world: (0.00, 0.00)</div></div>
 
