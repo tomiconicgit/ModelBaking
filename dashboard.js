@@ -12,6 +12,7 @@ export function mountDashboard(refreshOnly=false){
       <div class="button-group" style="flex-direction: column;">
         <label class="button" for="model-input">Load Model(s)</label>
         <button id="export-glb-btn" class="button ghost" disabled>Export Active</button>
+        <button id="export-all-draco-btn" class="button ghost" disabled>Export All (Draco)</button>
         <button id="center-camera-btn" class="button ghost">Reset View</button>
       </div>
 
@@ -36,11 +37,11 @@ export function mountDashboard(refreshOnly=false){
       </div>
     `;
 
-    // --- BEGIN MODIFICATION: Add event listener for the new button ---
     document.getElementById('center-camera-btn').addEventListener('click', () => {
       App.centerCamera();
     });
-    // --- END MODIFICATION ---
+
+    document.getElementById('export-all-draco-btn').addEventListener('click', () => App.exportAllDraco());
 
     document.getElementById('export-glb-btn').addEventListener('click', ()=> {
       const modal = document.getElementById('export-modal');
@@ -150,6 +151,7 @@ export function mountDashboard(refreshOnly=false){
     const hasModel = !!m;
 
     document.getElementById('export-glb-btn').disabled = !hasModel;
+    document.getElementById('export-all-draco-btn').disabled = !hasModel;
     document.getElementById('copy-data-btn').disabled = !hasModel;
     const rigBtn = document.getElementById('toggle-rig-btn');
     if (m?.skeletonHelper){ rigBtn.disabled=false; rigBtn.textContent = m.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig'; }
