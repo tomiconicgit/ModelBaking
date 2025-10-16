@@ -167,7 +167,8 @@
   {
     "imports": {
       "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+      "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/",
+      "three/addons/exporters/DRACOExporter.js": "https://unpkg.com/three@0.168.0/examples/jsm/exporters/DRACOExporter.js"
     }
   }
   </script>
@@ -212,7 +213,7 @@
     <div id="export-modal" class="modal-overlay hidden">
       <div class="modal">
         <h3>Export Model</h3>
-        <p>Select the model to export. All transform and mesh edits will be included.</p>
+        <p>Select the model to export. All transform and mesh edits will be included. Draco GLB offers the best compression.</p>
         <div style="display:grid; gap:16px">
           <div class="form-group">
             <label for="export-model-select">Model</label>
@@ -225,7 +226,8 @@
         </div>
         <div class="button-group" style="margin-top:24px">
           <button id="cancel-export-btn" class="button ghost" style="flex:1">Cancel</button>
-          <button id="confirm-export-btn" class="button" style="flex:1">Export</button>
+          <button id="confirm-export-btn" class="button ghost" style="flex:1">Export GLB</button>
+          <button id="confirm-export-draco-btn" class="button" style="flex:1">Export Draco GLB</button>
         </div>
       </div>
     </div>
