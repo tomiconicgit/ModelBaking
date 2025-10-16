@@ -10,12 +10,7 @@ export const App = {
   renderer: null,
   controls: null,
   envTex: null,
-  hud: document.getElementById('hud'),
   viewerEl: document.getElementById('viewer3d'),
-  GRID: { tile: 1, chunk: 50, snapMode: 'centers' },
-  gridHelper: null,
-  majorLines: null,
-  cursorCross: null,
   floorMesh: null,
   models: {},
   activeModelId: null,
@@ -25,7 +20,7 @@ export const App = {
 };
 
 let __initialized = false;
-let _exporter = null; // Lazy-loaded exporter
+let _exporter = null;
 
 (async function() {
   if (document.readyState === 'loading') {
@@ -55,28 +50,23 @@ export async function initViewer() {
   scene.background = new THREE.Color(0x101318);
 
   const camera = new THREE.PerspectiveCamera(50, viewerEl.clientWidth / viewerEl.clientHeight, 0.1, 5000);
-  camera.position.set(0, 8, 12);
+  camera.position.set(0, 5, 10);
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0.5, 0, 0.5);
+  controls.target.set(0, 1, 0);
   controls.enableDamping = true;
   controls.minDistance = 1;
-  controls.maxDistance = 200;
-  controls.maxPolarAngle = Math.PI * 0.499;
+  controls.maxDistance = 1000;
+  controls.maxPolarAngle = Math.PI * 0.9; // Allow looking from below
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
   dir.position.set(-6, 10, 6);
   scene.add(dir);
-
-  const axes = new THREE.AxesHelper(1.2);
-  axes.position.set(0, 0.001, 0);
-  scene.add(axes);
   
   Object.assign(App, { scene, camera, renderer, controls, envTex });
 
-  buildFloorAndGrid();
-  installCursorSnapping();
+  buildFloor();
 
   new ResizeObserver(() => {
     const w = viewerEl.clientWidth;
@@ -98,39 +88,13 @@ export async function initViewer() {
   __initialized = true;
 }
 
-function buildFloorAndGrid(){
-  const { scene, GRID } = App;
-  const size = GRID.chunk * GRID.tile;
-  const divisions = GRID.chunk;
-
-  const floorGeo = new THREE.PlaneGeometry(size, size);
+function buildFloor() {
+  const floorGeo = new THREE.PlaneGeometry(1000, 1000);
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 1.0, metalness: 0.0 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI * 0.5;
   scene.add(floor);
   App.floorMesh = floor;
-
-  const grid = new THREE.GridHelper(size, divisions, 0x3a3f46, 0x444B52);
-  grid.position.y = 0.001;
-  scene.add(grid);
-  App.gridHelper = grid;
-}
-
-function installCursorSnapping(){
-  const ray = new THREE.Raycaster();
-  const planeY0 = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
-  const p = new THREE.Vector3();
-
-  App.renderer.domElement.addEventListener('pointermove', (e)=>{
-    const ndc = new THREE.Vector2(
-      (e.offsetX / App.renderer.domElement.clientWidth) * 2 - 1,
-      -(e.offsetY / App.renderer.domElement.clientHeight) * 2 + 1
-    );
-    ray.setFromCamera(ndc, App.camera);
-    if (ray.ray.intersectPlane(planeY0, p)) {
-        if (App.hud) App.hud.textContent = `world: (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
-    }
-  });
 }
 
 function calculateModelStats(object){
@@ -152,22 +116,16 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
   anchor.add(gltf.scene);
   App.scene.add(anchor);
 
+  // Center the geometry's pivot and place it on the ground (y=0)
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.getCenter(new THREE.Vector3());
   gltf.scene.position.sub(center);
-
-  const size = box.getSize(new THREE.Vector3());
-  if (isFinite(size.x) && size.length() > 0) {
-    const maxDim = Math.max(size.x, size.y, size.z);
-    gltf.scene.scale.multiplyScalar(App.GRID.tile / maxDim);
-  }
-
   gltf.scene.updateMatrixWorld(true);
   const finalBox = new THREE.Box3().setFromObject(gltf.scene);
   gltf.scene.position.y -= finalBox.min.y;
   
-  const centerTilePos = 0.5 * App.GRID.tile;
-  anchor.position.set(centerTilePos, 0, centerTilePos);
+  // The anchor itself is placed at the world origin.
+  anchor.position.set(0, 0, 0);
 
   let skeletonHelper = null;
   const hasSkel = !!gltf.scene.getObjectByProperty('isSkinnedMesh', true);
@@ -188,11 +146,9 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
     skeletonHelper,
     fileInfo: { ...fileInfo, ...stats }
   };
-
-  if (!App.activeModelId) {
-    App.setActiveModel(id);
-    App.frameObject(anchor);
-  }
+  
+  App.setActiveModel(id);
+  App.frameObject(anchor); // Frame the new model on load
 
   App.events.dispatchEvent(new CustomEvent('panels:refresh-all'));
 };
@@ -208,27 +164,39 @@ App.frameObject = function(object){
   const box = new THREE.Box3().setFromObject(object);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  if (!isFinite(size.x)) return;
+
+  if (!isFinite(size.x) || size.length() === 0) return;
 
   const maxDim = Math.max(size.x, size.y, size.z);
-  const dist = Math.max(4, maxDim * 2);
+  const fov = App.camera.fov * (Math.PI / 180);
+  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+  cameraZ *= 1.7; // Add a buffer to prevent clipping edges
+
+  const newCamPos = new THREE.Vector3(center.x, center.y, center.z + cameraZ);
 
   App.controls.target.copy(center);
-  App.camera.position.set(center.x, center.y + dist * 0.5, center.z + dist);
+  App.camera.position.copy(newCamPos);
+  App.camera.lookAt(center);
+  
   App.controls.update();
 };
 
 App.centerCamera = function() {
-  const centerPos = new THREE.Vector3(0.5 * App.GRID.tile, 0, 0.5 * App.GRID.tile);
-  App.controls.target.copy(centerPos);
-  App.camera.position.set(centerPos.x, 8, centerPos.z + 12);
-  App.controls.update();
+    const activeModel = App.getActive();
+    if (activeModel) {
+        App.frameObject(activeModel.anchor);
+    } else {
+        App.controls.target.set(0, 1, 0);
+        App.camera.position.set(0, 5, 10);
+        App.controls.update();
+    }
 };
 
-App.snapActiveToCenterTile = function() {
-  const model = App.getActive(); if (!model) return;
-  const c = 0.5 * App.GRID.tile;
-  model.anchor.position.set(c, model.anchor.position.y, c);
+App.zeroActiveModelPosition = function() {
+  const model = App.getActive();
+  if (!model) return;
+  model.anchor.position.set(0, 0, 0);
+  App.events.dispatchEvent(new Event('transform:refresh'));
 };
 
 App.attachObjectToBone = function(object3D, targetBone, { mode = 'snap' } = {}) {
