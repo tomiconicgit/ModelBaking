@@ -20,7 +20,7 @@ export const App = {
   renderer: null,
   controls: null,
   envTex: null,
-  exporters: {},
+  // --- REMOVED exporters from here ---
 
   /* UI elements */
   hud: document.getElementById('hud'),
@@ -120,12 +120,9 @@ export async function initViewer() {
   axes.position.set(0, 0.001, 0);
   scene.add(axes);
   
-  // Exporters
-  const gltfExporter = new GLTFExporter();
-  const dracoExporter = new DRACOExporter();
-  dracoExporter.setEncoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/gltf/');
+  // --- REMOVED exporter initialization from here ---
 
-  Object.assign(App, { scene, camera, renderer, controls, envTex, exporters: { gltfExporter, dracoExporter } });
+  Object.assign(App, { scene, camera, renderer, controls, envTex });
 
   buildFloorAndGrid();
   installCursorSnapping();
@@ -597,9 +594,26 @@ App.attachObjectToBone = function attachObjectToBone(object3D, targetBone, { mod
   App.events.dispatchEvent(new Event('panels:refresh-all'));
 };
 
+
 /* -------------------------------------------------------
    NEW: EXPORTING LOGIC
 ------------------------------------------------------- */
+
+// --- BEGIN MODIFICATION: Lazy Initializer for Exporters ---
+let _exporters = null;
+function getExporters() {
+    if (!_exporters) {
+        const gltfExporter = new GLTFExporter();
+        const dracoExporter = new DRACOExporter();
+        // CORRECTED PATH for the ENCODER library
+        dracoExporter.setEncoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/');
+        _exporters = { gltfExporter, dracoExporter };
+    }
+    return _exporters;
+}
+// --- END MODIFICATION ---
+
+
 function triggerDownload(buffer, filename) {
     const blob = new Blob([buffer], { type:'model/gltf-binary' });
     const a = document.createElement('a');
@@ -615,6 +629,8 @@ App.exportModel = function(modelId, filename, { withDraco = false } = {}) {
   const m = App.models[modelId];
   if (!m) return alert('Model not found for export.');
 
+  const { gltfExporter, dracoExporter } = getExporters();
+
   const options = {
     binary: true,
     animations: m.animation ? [m.animation.clip] : m.gltf.animations
@@ -622,12 +638,11 @@ App.exportModel = function(modelId, filename, { withDraco = false } = {}) {
 
   if (withDraco) {
     options.plugins = {
-      KHR_draco_mesh_compression: { exporter: App.exporters.dracoExporter }
+      KHR_draco_mesh_compression: { exporter: dracoExporter }
     };
   }
 
-  // We export the anchor to preserve the world position, rotation, and scale.
-  App.exporters.gltfExporter.parse(
+  gltfExporter.parse(
     m.anchor,
     (buffer) => triggerDownload(buffer, filename),
     (err) => alert('Export failed: ' + (err?.message || err)),
@@ -640,6 +655,7 @@ App.exportAllDraco = function() {
     if (modelCount === 0) return alert('No models to export.');
     if (!confirm(`This will merge and export ${modelCount} model(s) as a single Draco GLB. All positions and scales will be preserved. Continue?`)) return;
 
+    const { gltfExporter, dracoExporter } = getExporters();
     const groupToExport = new THREE.Group();
     groupToExport.name = 'TitanForge_MergedScene';
 
@@ -656,11 +672,11 @@ App.exportAllDraco = function() {
         binary: true,
         animations: allAnimations,
         plugins: {
-            KHR_draco_mesh_compression: { exporter: App.exporters.dracoExporter }
+            KHR_draco_mesh_compression: { exporter: dracoExporter }
         }
     };
 
-    App.exporters.gltfExporter.parse(
+    gltfExporter.parse(
         groupToExport,
         (buffer) => triggerDownload(buffer, 'merged_scene.glb'),
         (err) => alert('Merged export failed: ' + (err?.message || err)),
