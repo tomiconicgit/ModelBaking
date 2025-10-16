@@ -28,7 +28,7 @@ export function mountTransform(refreshOnly=false){
 
     wrap.innerHTML = `
       <div class="button-group" style="margin-bottom: 24px;">
-        <button id="snap-center-btn" class="button ghost">Snap to Center</button>
+        <button id="zero-position-btn" class="button ghost">Zero Position</button>
       </div>
 
       <div class="transform-group">
@@ -51,16 +51,14 @@ export function mountTransform(refreshOnly=false){
       </div>
     `;
 
-    document.getElementById('snap-center-btn').addEventListener('click', () => {
-        App.snapActiveToCenterTile();
-        App.events.dispatchEvent(new Event('transform:refresh'));
+    document.getElementById('zero-position-btn').addEventListener('click', () => {
+        App.zeroActiveModelPosition();
     });
 
     wrap.querySelectorAll('.slider-row').forEach(row => {
       const rng = row.querySelector('.rng');
       const num = row.querySelector('.num');
       const id  = row.dataset.id;
-      const step = parseFloat(row.dataset.step);
       const decimals = parseInt(row.dataset.decimals);
 
       const syncInputs = (source) => {
