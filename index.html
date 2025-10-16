@@ -52,12 +52,7 @@
     }
     #viewer3d { height: var(--viewer-h); position: relative; background: var(--bg); }
     #viewer3d canvas { display: block; width: 100%; height: 100%; }
-    #hud {
-      position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,0.6);
-      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px;
-      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      color: var(--fg-light); pointer-events: none; backdrop-filter: blur(5px);
-    }
+
     #panel-container {
       flex: 1; background: var(--panel-bg); border-top: 1px solid var(--border);
       display: flex; flex-direction: column; overflow: hidden;
@@ -85,7 +80,7 @@
       background: var(--primary); border: none; color: #fff; border-radius: var(--radius-md);
       padding: 0 16px; font-size: 0.9rem; font-weight: 600; min-height: 44px;
       transition: background-color .2s ease, transform .1s ease;
-      flex: 1; /* For button groups */
+      flex: 1;
     }
     .button:active { transform: scale(0.97); }
     .button.ghost {
@@ -97,7 +92,7 @@
     
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; font-weight: 500; color: var(--fg-light); margin-bottom: 8px; }
-    .form-group select, .form-group input[type=text], .form-group input[type=number] {
+    .form-group select, .form-group input[type=text] {
       width: 100%; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--border);
       background: var(--surface-bg); color: var(--fg); font-size: 1rem; padding: 0 16px;
     }
@@ -187,7 +182,7 @@
   </div>
   
   <div id="app" class="hidden" role="application">
-    <div id="viewer3d"><div id="hud">tile: (0,0) • mode: centers • world: (0.00, 0.00)</div></div>
+    <div id="viewer3d"></div>
 
     <div id="panel-container">
       <nav id="bottom-navbar">
