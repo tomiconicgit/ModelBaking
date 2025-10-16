@@ -220,7 +220,7 @@ function updateHud(worldX, worldZ){
   const tx = tileIndexFromWorld(worldX);
   const tz = tileIndexFromWorld(worldZ);
   if (App.hud) App.hud.textContent =
-    `tile: (${tx},${tz}) • mode: ${App.GRID.snapMode} • world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
+    `tile: (${tx},${tz}) â¢ mode: ${App.GRID.snapMode} â¢ world: (${worldX.toFixed(2)}, ${worldZ.toFixed(2)})`;
 }
 function installCursorSnapping(){
   const ray = new THREE.Raycaster();
@@ -254,6 +254,26 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
   anchor.position.set(0,0,0);
   anchor.add(gltf.scene);
   App.scene.add(anchor);
+
+  // --- BEGIN: Automatic Model Scaling ---
+  // 1. Center the model's geometry so its pivot is at its geometric center.
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const center = box.getCenter(new THREE.Vector3());
+  gltf.scene.position.sub(center); // Move the scene object itself to offset the geometry.
+
+  // 2. Calculate the size and determine a scale factor to fit it into a standard 1x1x1 tile.
+  const size = box.getSize(new THREE.Vector3());
+  if (isFinite(size.x) && isFinite(size.y) && isFinite(size.z) && size.length() > 0) {
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scaleFactor = App.GRID.tile / maxDim;
+    gltf.scene.scale.multiplyScalar(scaleFactor);
+  }
+
+  // 3. Place the scaled model on the ground plane (y=0).
+  gltf.scene.updateMatrixWorld(true); // Ensure matrices are updated after scaling.
+  const finalBox = new THREE.Box3().setFromObject(gltf.scene);
+  gltf.scene.position.y -= finalBox.min.y;
+  // --- END: Automatic Model Scaling ---
 
   gltf.scene.traverse(o=>{
     if (o.isMesh){
