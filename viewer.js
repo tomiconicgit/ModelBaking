@@ -255,13 +255,11 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
   anchor.add(gltf.scene);
   App.scene.add(anchor);
 
-  // --- BEGIN: Automatic Model Scaling & Centering ---
-  // 1. Center the model's geometry so its pivot is at its geometric center.
+  // --- Automatic Model Scaling & Centering ---
   const box = new THREE.Box3().setFromObject(gltf.scene);
   const center = box.getCenter(new THREE.Vector3());
   gltf.scene.position.sub(center);
 
-  // 2. Calculate the size and determine a scale factor to fit it into a standard 1x1x1 tile.
   const size = box.getSize(new THREE.Vector3());
   if (isFinite(size.x) && isFinite(size.y) && isFinite(size.z) && size.length() > 0) {
     const maxDim = Math.max(size.x, size.y, size.z);
@@ -269,15 +267,13 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
     gltf.scene.scale.multiplyScalar(scaleFactor);
   }
 
-  // 3. Place the scaled model on the ground plane (y=0).
   gltf.scene.updateMatrixWorld(true);
   const finalBox = new THREE.Box3().setFromObject(gltf.scene);
   gltf.scene.position.y -= finalBox.min.y;
-
-  // 4. Position the model's anchor on the center tile.
+  
+  // Place anchor on the center tile.
   const centerTilePos = 0.5 * App.GRID.tile;
   anchor.position.set(centerTilePos, 0, centerTilePos);
-  // --- END: Automatic Model Scaling & Centering ---
 
   gltf.scene.traverse(o=>{
     if (o.isMesh){
@@ -314,9 +310,10 @@ App.addModel = function addModel(gltf, fileInfo={ name:'model.glb', size:0 }){
     fileInfo: { ...fileInfo, polygons: stats.polygons, vertices: stats.vertices }
   };
 
-  // --- MODIFIED: Always activate and frame the newly loaded model ---
-  App.setActiveModel(id);
-  App.frameObject(anchor);
+  if (!App.activeModelId) {
+    App.setActiveModel(id);
+    App.frameObject(anchor);
+  }
 
   App.events.dispatchEvent(new CustomEvent('models:changed'));
   return id;
@@ -374,6 +371,15 @@ App.frameObject = function frameObject(object){
   App.camera.updateProjectionMatrix();
   App.controls.update();
 };
+
+// --- BEGIN MODIFICATION: Add new camera function ---
+App.centerCamera = function centerCamera() {
+  const centerTilePos = 0.5 * App.GRID.tile;
+  App.controls.target.set(centerTilePos, 0, centerTilePos);
+  App.camera.position.set(centerTilePos, 8, centerTilePos + 12); // Position relative to center
+  App.controls.update();
+};
+// --- END MODIFICATION ---
 
 /* -------------------------------------------------------
    Grid utilities for ACTIVE model
