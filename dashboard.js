@@ -12,6 +12,7 @@ export function mountDashboard(refreshOnly=false){
       <div class="button-group" style="flex-direction: column;">
         <label class="button" for="model-input">Load Model(s)</label>
         <button id="export-glb-btn" class="button ghost" disabled>Export Active</button>
+        <button id="center-camera-btn" class="button ghost">Reset View</button>
       </div>
 
       <div id="anim-ui" class="hidden" style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
@@ -34,6 +35,12 @@ export function mountDashboard(refreshOnly=false){
         </div>
       </div>
     `;
+
+    // --- BEGIN MODIFICATION: Add event listener for the new button ---
+    document.getElementById('center-camera-btn').addEventListener('click', () => {
+      App.centerCamera();
+    });
+    // --- END MODIFICATION ---
 
     document.getElementById('export-glb-btn').addEventListener('click', ()=> {
       const modal = document.getElementById('export-modal');
