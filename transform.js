@@ -23,7 +23,7 @@ export function mountTransform(refreshOnly=false){
       <div class="slider-row" data-row="${id}" data-step="${step}" data-min="${min}" data-max="${max}" data-decimals="${decimals}">
         <label>${label}</label>
         <input type="number" class="num" value="${val}" step="${step}">
-        <button class="nudge" data-dir="-1">â</button>
+        <button class="nudge" data-dir="-1">−</button>
         <button class="nudge" data-dir="1">+</button>
         <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step/10}">
       </div>`;
@@ -31,9 +31,9 @@ export function mountTransform(refreshOnly=false){
     wrap.innerHTML = `
       <div class="transform-group">
         <h4>Position</h4>
-        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -25, 25, 0.1, 2)}
-        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -25, 25, 0.1, 2)}
-        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -25, 25, 0.1, 2)}
+        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -100, 100, 0.1, 2)}
+        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -100, 100, 0.1, 2)}
+        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -100, 100, 0.1, 2)}
       </div>
       <div class="transform-group">
         <h4>Rotation (deg)</h4>
