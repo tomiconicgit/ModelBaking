@@ -19,24 +19,34 @@ function getExportInputs() {
   return { id, filename };
 }
 
+function handleExport(options) {
+    const inputs = getExportInputs();
+    if (!inputs) return;
+
+    const overlay = document.getElementById('loading-overlay');
+    document.getElementById('export-modal').classList.add('hidden');
+    overlay.classList.remove('hidden');
+
+    // Use a timeout to allow the UI to update before the heavy export task begins
+    setTimeout(() => {
+        App.exportModel(inputs.id, inputs.filename, {
+            ...options,
+            onComplete: () => overlay.classList.add('hidden'),
+            onError: () => overlay.classList.add('hidden'),
+        });
+    }, 50);
+}
+
 document.getElementById('cancel-export-btn').addEventListener('click', () => {
   document.getElementById('export-modal').classList.add('hidden');
 });
 
 // Standard GLB export
 document.getElementById('confirm-export-btn').addEventListener('click', () => {
-  const inputs = getExportInputs();
-  if (inputs) {
-    App.exportModel(inputs.id, inputs.filename, { withDraco: false });
-    document.getElementById('export-modal').classList.add('hidden');
-  }
+  handleExport({ withDraco: false });
 });
 
 // Draco GLB export
 document.getElementById('confirm-export-draco-btn').addEventListener('click', () => {
-  const inputs = getExportInputs();
-  if (inputs) {
-    App.exportModel(inputs.id, inputs.filename, { withDraco: true });
-    document.getElementById('export-modal').classList.add('hidden');
-  }
+  handleExport({ withDraco: true });
 });
