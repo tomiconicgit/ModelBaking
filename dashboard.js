@@ -1,7 +1,7 @@
 // dashboard.js
 import { App, formatBytes } from './viewer.js';
 import './export.js'; // registers modal handlers
-import * as THREE from 'three'; // Import THREE to use its utils
+import * as THREE from 'three';
 
 export function mountDashboard(refreshOnly=false){
   const el = document.getElementById('dashboard-panel');
@@ -9,13 +9,18 @@ export function mountDashboard(refreshOnly=false){
     el.innerHTML = `
       <div id="dash-status" style="color: var(--fg-light); margin-bottom: 20px; text-align: center;">Load a model to begin.</div>
       
-      <div class="button-group" style="flex-direction: column;">
-        <label class="button" for="model-input">Load Model(s)</label>
+      <div class="button-group" style="margin-bottom: 10px;">
+        <label class="button" for="model-input">Load Model</label>
         <button id="export-glb-btn" class="button ghost" disabled>Export Active</button>
-        <button id="export-all-draco-btn" class="button ghost" disabled>Export All (Draco)</button>
         <button id="center-camera-btn" class="button ghost">Reset View</button>
       </div>
 
+      <div class="button-group">
+        <button id="load-anim-btn" class="button ghost">Load Animation</button>
+        <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
+        <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
+      </div>
+      
       <div id="anim-ui" class="hidden" style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
         <h4 class="panel-title" style="margin-bottom:16px; text-align:center;">Animation Controls</h4>
         <div class="button-group" style="justify-content:center;">
@@ -27,51 +32,35 @@ export function mountDashboard(refreshOnly=false){
             <button id="remove-anim-btn" class="button accent" style="width:100%" disabled>Remove Animation</button>
         </div>
       </div>
-
-      <div style="margin-top:20px; padding-top:20px; border-top: 1px solid var(--border);">
-        <div class="button-group" style="flex-direction: column;">
-            <button id="load-anim-btn" class="button ghost">Load Animation</button>
-            <button id="toggle-rig-btn" class="button ghost" disabled>Show Rig</button>
-            <button id="copy-data-btn" class="button ghost" disabled>Copy Data</button>
-        </div>
-      </div>
     `;
 
-    document.getElementById('center-camera-btn').addEventListener('click', () => {
-      App.centerCamera();
+    document.getElementById('export-glb-btn').addEventListener('click', () => {
+        const modal = document.getElementById('export-modal');
+        if (!Object.keys(App.models).length) return alert('No models to export.');
+        const sel = document.getElementById('export-model-select');
+        sel.innerHTML = Object.entries(App.models).map(([id,m])=>`<option value="${id}">${m.fileInfo.name}</option>`).join('');
+        sel.value = App.activeModelId || sel.options[0].value;
+        const currentName = App.models[sel.value].fileInfo.name.replace(/\.glb$/i,'');
+        document.getElementById('export-filename-input').value = `${currentName}_edited`;
+        modal.classList.remove('hidden');
     });
 
-    document.getElementById('export-all-draco-btn').addEventListener('click', () => {
-        const overlay = document.getElementById('loading-overlay');
-        overlay.classList.remove('hidden'); // Show loading overlay
-        
-        // Use a timeout to allow the UI to update before the heavy export task starts
-        setTimeout(() => {
-            App.exportAllDraco({
-                onComplete: () => overlay.classList.add('hidden'),
-                onError: () => overlay.classList.add('hidden'),
-            });
-        }, 50);
+    document.getElementById('center-camera-btn').addEventListener('click', () => App.centerCamera());
+    document.getElementById('load-anim-btn').addEventListener('click', () => document.getElementById('animation-input').click());
+    document.getElementById('toggle-rig-btn').addEventListener('click', ()=>{
+      const m = App.models[App.activeModelId];
+      if (m?.skeletonHelper){
+          m.skeletonHelper.visible = !m.skeletonHelper.visible;
+          refresh();
+      }
     });
-
-    document.getElementById('export-glb-btn').addEventListener('click', ()=> {
-      const modal = document.getElementById('export-modal');
-      if (!Object.keys(App.models).length) return alert('No models to export.');
-      const sel = document.getElementById('export-model-select');
-      sel.innerHTML = Object.entries(App.models).map(([id,m])=>`<option value="${id}">${m.fileInfo.name}</option>`).join('');
-      sel.value = App.activeModelId || sel.options[0].value;
-      const currentName = App.models[sel.value].fileInfo.name.replace(/\.glb$/i,'');
-      document.getElementById('export-filename-input').value = `${currentName}_edited`;
-      modal.classList.remove('hidden');
-    });
-
+    
     document.getElementById('copy-data-btn').addEventListener('click', () => {
       const m = App.models[App.activeModelId];
       if (!m) return;
 
       const s = m.anchor;
       const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
-      
       const rotationInDegrees = [
         parseFloat(THREE.MathUtils.radToDeg(euler.x).toFixed(2)),
         parseFloat(THREE.MathUtils.radToDeg(euler.y).toFixed(2)),
@@ -86,58 +75,15 @@ export function mountDashboard(refreshOnly=false){
       };
       
       const dataString = JSON.stringify(data, null, 2);
-
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(dataString)
-          .then(() => alert('✅ Transform data copied to clipboard!'))
-          .catch(err => {
-            console.error('Failed to copy with modern API:', err);
-            fallbackCopyTextToClipboard(dataString);
-          });
-      } else {
-        fallbackCopyTextToClipboard(dataString);
-      }
+      navigator.clipboard.writeText(dataString)
+        .then(() => alert('✅ Transform data copied to clipboard!'))
+        .catch(err => alert('❌ Copy failed. See console for details.'));
     });
 
-    function fallbackCopyTextToClipboard(text) {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      
-      textArea.style.top = "0";
-      textArea.style.left = "0";
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-    
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-    
-      try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-          alert('✅ Transform data copied (using fallback method)!');
-        } else {
-          alert('❌ Copying failed. Please copy from the browser console.');
-          console.log('Fallback copy failed. Data to copy manually:', text);
-        }
-      } catch (err) {
-        alert('❌ An error occurred during copy. Please copy from the browser console.');
-        console.error('Fallback copy error', err);
-        console.log('Data to copy manually:', text);
-      }
-    
-      document.body.removeChild(textArea);
-    }
-
-    document.getElementById('toggle-rig-btn').addEventListener('click', ()=>{
-      const m = App.models[App.activeModelId]; if (m?.skeletonHelper){ m.skeletonHelper.visible = !m.skeletonHelper.visible; refresh(); }
-    });
-
-    document.getElementById('load-anim-btn').addEventListener('click', ()=> document.getElementById('animation-input').click());
+    // Animation Controls
     document.getElementById('remove-anim-btn').addEventListener('click', ()=>{
       const m = App.models[App.activeModelId]; if (m?.animation){ m.mixer.stopAllAction(); m.mixer.uncacheClip(m.animation.clip); m.animation=null; refresh(); }
     });
-
     document.getElementById('play-pause-btn').addEventListener('click', ()=>{
       const m = App.models[App.activeModelId]; if (!m?.animation) return;
       const a = m.animation.action; a.paused = !a.paused; if (!a.isRunning()) a.play(); refresh();
@@ -155,11 +101,15 @@ export function mountDashboard(refreshOnly=false){
     const hasModel = !!m;
 
     document.getElementById('export-glb-btn').disabled = !hasModel;
-    document.getElementById('export-all-draco-btn').disabled = !hasModel;
     document.getElementById('copy-data-btn').disabled = !hasModel;
     const rigBtn = document.getElementById('toggle-rig-btn');
-    if (m?.skeletonHelper){ rigBtn.disabled=false; rigBtn.textContent = m.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig'; }
-    else { rigBtn.disabled=true; rigBtn.textContent = 'Show Rig'; }
+    if (m?.skeletonHelper){
+      rigBtn.disabled=false;
+      rigBtn.textContent = m.skeletonHelper.visible ? 'Hide Rig' : 'Show Rig';
+    } else {
+      rigBtn.disabled=true;
+      rigBtn.textContent = 'Show Rig';
+    }
 
     const animUI = document.getElementById('anim-ui');
     if (m?.animation){
