@@ -5,7 +5,7 @@ import { App } from './viewer.js';
 export function mountTransform(refreshOnly=false){
   const host = document.getElementById('transform-panel');
   if (!refreshOnly){
-    host.innerHTML = `<div id="transform-controls-wrapper"><div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model to see transform controls.</div></div>`;
+    host.innerHTML = `<div id="transform-controls-wrapper"></div>`;
     App.events.addEventListener('transform:refresh', build);
     App.events.addEventListener('panels:refresh-all', build);
   }
@@ -16,101 +16,82 @@ export function mountTransform(refreshOnly=false){
     const wrap = document.getElementById('transform-controls-wrapper');
     if (!m){ wrap.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model to see transform controls.</div>'; return; }
 
-    const s = m.anchor; // FIX: Target the anchor, not the internal scene
+    const s = m.anchor;
     const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
     const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
-      <div class="slider-row" data-row="${id}" data-step="${step}" data-min="${min}" data-max="${max}" data-decimals="${decimals}">
+      <div class="slider-row" data-id="${id}" data-step="${step}" data-decimals="${decimals}">
         <label>${label}</label>
-        <input type="number" class="num" value="${val}" step="${step}">
-        <button class="nudge" data-dir="-1">−</button>
-        <button class="nudge" data-dir="1">+</button>
-        <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step/10}">
+        <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step / 10}">
+        <input type="number" class="num" value="${val.toFixed(decimals)}" step="${step}">
       </div>`;
 
     wrap.innerHTML = `
+      <div class="button-group" style="margin-bottom: 24px;">
+        <button id="snap-center-btn" class="button ghost">Snap to Center</button>
+      </div>
+
       <div class="transform-group">
         <h4>Position</h4>
-        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -300, 300, 0.1, 2)}
-        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -300, 300, 0.1, 2)}
-        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -300, 300, 0.1, 2)}
+        ${sliderRow('pos-x','X', s.position.x, -300, 300, 0.1, 2)}
+        ${sliderRow('pos-y','Y', s.position.y, -300, 300, 0.1, 2)}
+        ${sliderRow('pos-z','Z', s.position.z, -300, 300, 0.1, 2)}
       </div>
       <div class="transform-group">
         <h4>Rotation (deg)</h4>
-        ${sliderRow('rot-x','X', THREE.MathUtils.radToDeg(euler.x).toFixed(1), -180, 180, 5, 1)}
-        ${sliderRow('rot-y','Y', THREE.MathUtils.radToDeg(euler.y).toFixed(1), -180, 180, 5, 1)}
-        ${sliderRow('rot-z','Z', THREE.MathUtils.radToDeg(euler.z).toFixed(1), -180, 180, 5, 1)}
+        ${sliderRow('rot-x','X', THREE.MathUtils.radToDeg(euler.x), -180, 180, 1, 1)}
+        ${sliderRow('rot-y','Y', THREE.MathUtils.radToDeg(euler.y), -180, 180, 1, 1)}
+        ${sliderRow('rot-z','Z', THREE.MathUtils.radToDeg(euler.z), -180, 180, 1, 1)}
       </div>
       <div class="transform-group">
-        <h4>Scale (Per-Axis)</h4>
-        ${sliderRow('scl-x','X', s.scale.x.toFixed(3), 0.01, 10, 0.05, 3)}
-        ${sliderRow('scl-y','Y', s.scale.y.toFixed(3), 0.01, 10, 0.05, 3)}
-        ${sliderRow('scl-z','Z', s.scale.z.toFixed(3), 0.01, 10, 0.05, 3)}
-      </div>
-      <div class="transform-group">
-        <h4>Scale (Uniform)</h4>
-        ${sliderRow('uni','U', '1.00', 0.5, 2.0, 0.05, 2)}
+        <h4>Scale</h4>
+        ${sliderRow('scl-x','X', s.scale.x, 0.01, 10, 0.01, 3)}
+        ${sliderRow('scl-y','Y', s.scale.y, 0.01, 10, 0.01, 3)}
+        ${sliderRow('scl-z','Z', s.scale.z, 0.01, 10, 0.01, 3)}
       </div>
     `;
 
-    wrap.querySelectorAll('.slider-row').forEach(row=>{
+    document.getElementById('snap-center-btn').addEventListener('click', () => {
+        App.snapActiveToCenterTile();
+        App.events.dispatchEvent(new Event('transform:refresh'));
+    });
+
+    wrap.querySelectorAll('.slider-row').forEach(row => {
       const rng = row.querySelector('.rng');
       const num = row.querySelector('.num');
-      const id  = row.dataset.row;
+      const id  = row.dataset.id;
       const step = parseFloat(row.dataset.step);
-      const min = parseFloat(row.dataset.min);
-      const max = parseFloat(row.dataset.max);
-      const decimals = parseInt(row.dataset.decimals || 2);
+      const decimals = parseInt(row.dataset.decimals);
 
-      const clamp = (v, targetId)=> {
-        const r = wrap.querySelector(`[data-row="${targetId}"]`);
-        const rMin = parseFloat(r.dataset.min);
-        const rMax = parseFloat(r.dataset.max);
-        return Math.min(rMax, Math.max(rMin, v));
-      }
-
-      const apply = (val, source)=>{
-        const scn = App.models[App.activeModelId]?.anchor; if (!scn) return; // FIX: Target the anchor
-        let clampedVal = clamp(val, id);
-        
-        if (source !== 'num') { num.value = clampedVal.toFixed(decimals); }
-        if (source !== 'rng') { rng.value = clampedVal; }
-        
-        if (id.startsWith('pos-')){
-          if (id==='pos-x') scn.position.x = clampedVal; else if (id==='pos-y') scn.position.y = clampedVal; else scn.position.z = clampedVal;
-        } else if (id.startsWith('rot-')){
-          const cur = new THREE.Euler().setFromQuaternion(scn.quaternion, 'YXZ');
-          const rx = id==='rot-x' ? THREE.MathUtils.degToRad(clampedVal) : cur.x;
-          const ry = id==='rot-y' ? THREE.MathUtils.degToRad(clampedVal) : cur.y;
-          const rz = id==='rot-z' ? THREE.MathUtils.degToRad(clampedVal) : cur.z;
-          scn.quaternion.setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ'));
-        } else if (id.startsWith('scl-')){
-          if (id==='scl-x') scn.scale.x = clampedVal; else if (id==='scl-y') scn.scale.y = clampedVal; else scn.scale.z = clampedVal;
-        } else if (id==='uni'){
-          // Uniform scale is multiplicative, so we reset its own slider after applying
-          scn.scale.multiplyScalar(clampedVal);
-          rng.value = 1.0; num.value = (1.0).toFixed(decimals);
-          // reflect into per-axis fields
-          ['x','y','z'].forEach(axis=>{
-            const r = wrap.querySelector(`[data-row="scl-${axis}"]`);
-            const newV = clamp(scn.scale[axis], `scl-${axis}`);
-            r.querySelector('.rng').value = newV;
-            r.querySelector('.num').value = newV.toFixed(3);
-          });
-        }
+      const syncInputs = (source) => {
+          const val = parseFloat(source.value);
+          if (isNaN(val)) return;
+          if (source.type === 'range') {
+              num.value = val.toFixed(decimals);
+          } else {
+              rng.value = val;
+          }
+          applyTransform(val);
       };
 
-      rng.addEventListener('input', ()=> apply(parseFloat(rng.value), 'rng'));
-      num.addEventListener('input', ()=> { const v = parseFloat(num.value); if (!isNaN(v)) apply(v, 'num'); });
-      row.querySelectorAll('.nudge').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const dir = parseFloat(btn.dataset.dir);
-          const cur = (id.startsWith('scl-') || id.startsWith('pos-')) 
-              ? parseFloat(num.value) 
-              : parseFloat(rng.value);
-          apply(cur + dir*step, 'nudge');
-        });
-      });
+      const applyTransform = (val) => {
+          const model = App.getActive();
+          if (!model) return;
+          const target = model.anchor;
+
+          if (id.startsWith('pos-')) {
+              target.position[id.slice(-1)] = val;
+          } else if (id.startsWith('scl-')) {
+              target.scale[id.slice(-1)] = val;
+          } else if (id.startsWith('rot-')) {
+              const euler = new THREE.Euler().setFromQuaternion(target.quaternion, 'YXZ');
+              euler[id.slice(-1)] = THREE.MathUtils.degToRad(val);
+              target.quaternion.setFromEuler(euler);
+          }
+      };
+
+      rng.addEventListener('input', () => syncInputs(rng));
+      num.addEventListener('input', () => syncInputs(num));
     });
   }
 }
