@@ -20,7 +20,6 @@ export const App = {
   renderer: null,
   controls: null,
   envTex: null,
-  // --- REMOVED exporters from here ---
 
   /* UI elements */
   hud: document.getElementById('hud'),
@@ -74,7 +73,7 @@ export async function initViewer() {
   if (!viewerEl) throw new Error('#viewer3d not found in DOM');
 
   // Renderer
-  const renderer = new THREE.WebGLRenderer({ antialiias: true, alpha: false, preserveDrawingBuffer: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(
     viewerEl.clientWidth || window.innerWidth,
@@ -120,8 +119,6 @@ export async function initViewer() {
   axes.position.set(0, 0.001, 0);
   scene.add(axes);
   
-  // --- REMOVED exporter initialization from here ---
-
   Object.assign(App, { scene, camera, renderer, controls, envTex });
 
   buildFloorAndGrid();
@@ -542,7 +539,7 @@ export function getScene(){ return App.scene; }
 export const rebuildGrid = buildFloorAndGrid; // alias
 
 /* -------------------------------------------------------
-   NEW: Bind-pose + TRS utilities (for bone-local export)
+   Bind-pose + TRS utilities (for bone-local export)
 ------------------------------------------------------- */
 App.withBindPoseForModel = async function withBindPoseForModel(modelId, fn) {
   const m = App.models[modelId];
@@ -577,7 +574,7 @@ App.computeBoneLocalTRS = function computeBoneLocalTRS(object3D, bone) {
 };
 
 /* -------------------------------------------------------
-   NEW: Attach & SNAP helper (what you asked for)
+   Attach & SNAP helper (what you asked for)
 ------------------------------------------------------- */
 App.attachObjectToBone = function attachObjectToBone(object3D, targetBone, { mode = 'snap' } = {}) {
   if (!object3D || !targetBone) return;
@@ -596,64 +593,95 @@ App.attachObjectToBone = function attachObjectToBone(object3D, targetBone, { mod
 
 
 /* -------------------------------------------------------
-   NEW: EXPORTING LOGIC
+   EXPORTING LOGIC
 ------------------------------------------------------- */
 
-// --- BEGIN MODIFICATION: Lazy Initializer for Exporters ---
 let _exporters = null;
 function getExporters() {
     if (!_exporters) {
         const gltfExporter = new GLTFExporter();
         const dracoExporter = new DRACOExporter();
-        // CORRECTED PATH for the ENCODER library
         dracoExporter.setEncoderPath('https://unpkg.com/three@0.168.0/examples/jsm/libs/draco/');
         _exporters = { gltfExporter, dracoExporter };
     }
     return _exporters;
 }
-// --- END MODIFICATION ---
 
 
 function triggerDownload(buffer, filename) {
-    const blob = new Blob([buffer], { type:'model/gltf-binary' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
+    try {
+        const blob = new Blob([buffer], { type:'model/gltf-binary' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    } catch (e) {
+        console.error("Download failed.", e);
+        alert("An error occurred during download.");
+    }
 }
 
-App.exportModel = function(modelId, filename, { withDraco = false } = {}) {
+App.exportModel = function(modelId, filename, options = {}) {
+  const { 
+    withDraco = false, 
+    onComplete = () => {}, 
+    onError = () => {} 
+  } = options;
+
   const m = App.models[modelId];
-  if (!m) return alert('Model not found for export.');
+  if (!m) {
+    alert('Model not found for export.');
+    onError();
+    return;
+  }
 
   const { gltfExporter, dracoExporter } = getExporters();
 
-  const options = {
+  const exportOptions = {
     binary: true,
     animations: m.animation ? [m.animation.clip] : m.gltf.animations
   };
 
   if (withDraco) {
-    options.plugins = {
+    exportOptions.plugins = {
       KHR_draco_mesh_compression: { exporter: dracoExporter }
     };
   }
 
-  gltfExporter.parse(
-    m.anchor,
-    (buffer) => triggerDownload(buffer, filename),
-    (err) => alert('Export failed: ' + (err?.message || err)),
-    options
-  );
+  const successCallback = (buffer) => {
+    triggerDownload(buffer, filename);
+    onComplete();
+  };
+
+  const errorCallback = (err) => {
+    console.error('Export failed:', err);
+    alert('Export failed: ' + (err?.message || err));
+    onError();
+  };
+  
+  try {
+    gltfExporter.parse(m.anchor, successCallback, errorCallback, exportOptions);
+  } catch (e) {
+    errorCallback(e);
+  }
 };
 
-App.exportAllDraco = function() {
+App.exportAllDraco = function(options = {}) {
+    const { onComplete = () => {}, onError = () => {} } = options;
+    
     const modelCount = Object.keys(App.models).length;
-    if (modelCount === 0) return alert('No models to export.');
-    if (!confirm(`This will merge and export ${modelCount} model(s) as a single Draco GLB. All positions and scales will be preserved. Continue?`)) return;
+    if (modelCount === 0) {
+        alert('No models to export.');
+        onError();
+        return;
+    }
+    if (!confirm(`This will merge and export ${modelCount} model(s) as a single Draco GLB. All positions and scales will be preserved. Continue?`)) {
+        onComplete(); // User cancelled, so we just hide the overlay.
+        return;
+    }
 
     const { gltfExporter, dracoExporter } = getExporters();
     const groupToExport = new THREE.Group();
@@ -668,7 +696,7 @@ App.exportAllDraco = function() {
         }
     }
     
-    const options = {
+    const exportOptions = {
         binary: true,
         animations: allAnimations,
         plugins: {
@@ -676,10 +704,20 @@ App.exportAllDraco = function() {
         }
     };
 
-    gltfExporter.parse(
-        groupToExport,
-        (buffer) => triggerDownload(buffer, 'merged_scene.glb'),
-        (err) => alert('Merged export failed: ' + (err?.message || err)),
-        options
-    );
+    const successCallback = (buffer) => {
+        triggerDownload(buffer, 'merged_scene.glb');
+        onComplete();
+    };
+
+    const errorCallback = (err) => {
+        console.error('Merged export failed:', err);
+        alert('Merged export failed: ' + (err?.message || err));
+        onError();
+    };
+
+    try {
+        gltfExporter.parse(groupToExport, successCallback, errorCallback, exportOptions);
+    } catch(e) {
+        errorCallback(e);
+    }
 };
