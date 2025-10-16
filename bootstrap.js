@@ -8,7 +8,6 @@ const MODULES = [
   './loader.js',
   './panel.js',
   './dashboard.js',
-  './grid.js',
   './transform.js',
   './meshes.js',
   './textures.js',
@@ -52,7 +51,6 @@ const splash = (() => {
 
 // --- Wire debugger to splash ------------------------------------------
 const dbg = initDebugger({
-  // we’ll drive start-up below; no onPassed handler needed
   onFailed: (formatted) => splash.showError(formatted.plain),
   ui: {
     titleEl:   document.getElementById('brand'),
@@ -71,10 +69,8 @@ const dbg = initDebugger({
 
     splash.setMessage('Starting Titan Forge…');
 
-    // viewer.js self-initializes on import (no initViewer call)
     await import('./viewer.js');
 
-    // Load the rest in parallel
     const [{ initLoader }, { initPanels }] = await Promise.all([
       import('./loader.js'),
       import('./panel.js')
