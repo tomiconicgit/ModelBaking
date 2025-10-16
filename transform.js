@@ -31,9 +31,9 @@ export function mountTransform(refreshOnly=false){
     wrap.innerHTML = `
       <div class="transform-group">
         <h4>Position</h4>
-        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -100, 100, 0.1, 2)}
-        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -100, 100, 0.1, 2)}
-        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -100, 100, 0.1, 2)}
+        ${sliderRow('pos-x','X', s.position.x.toFixed(2), -300, 300, 0.1, 2)}
+        ${sliderRow('pos-y','Y', s.position.y.toFixed(2), -300, 300, 0.1, 2)}
+        ${sliderRow('pos-z','Z', s.position.z.toFixed(2), -300, 300, 0.1, 2)}
       </div>
       <div class="transform-group">
         <h4>Rotation (deg)</h4>
