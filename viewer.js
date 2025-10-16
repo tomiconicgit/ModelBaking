@@ -55,8 +55,9 @@ export async function initViewer() {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 1, 0);
   controls.enableDamping = true;
-  controls.minDistance = 1;
-  controls.maxDistance = 1000;
+  controls.minDistance = 0.1;
+  // --- FIX: Removed the maximum distance limit ---
+  // controls.maxDistance = 1000; 
   controls.maxPolarAngle = Math.PI * 0.9;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
@@ -93,7 +94,7 @@ function buildFloor() {
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x141820, roughness: 1.0, metalness: 0.0 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI * 0.5;
-  App.scene.add(floor); // <-- THIS LINE WAS FIXED
+  App.scene.add(floor);
   App.floorMesh = floor;
 }
 
@@ -167,10 +168,15 @@ App.frameObject = function(object){
 
   const maxDim = Math.max(size.x, size.y, size.z);
   const fov = App.camera.fov * (Math.PI / 180);
-  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-  cameraZ *= 1.7;
+  let cameraDist = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+  cameraDist *= 1.7;
 
-  const newCamPos = new THREE.Vector3(center.x, center.y, center.z + cameraZ);
+  const newCamPos = new THREE.Vector3(center.x, center.y, center.z + cameraDist);
+  
+  // --- FIX: Dynamically update camera clipping planes ---
+  App.camera.near = cameraDist / 100;
+  App.camera.far = cameraDist * 2;
+  App.camera.updateProjectionMatrix();
 
   App.controls.target.copy(center);
   App.camera.position.copy(newCamPos);
