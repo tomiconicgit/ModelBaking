@@ -41,7 +41,18 @@ export function mountDashboard(refreshOnly=false){
       App.centerCamera();
     });
 
-    document.getElementById('export-all-draco-btn').addEventListener('click', () => App.exportAllDraco());
+    document.getElementById('export-all-draco-btn').addEventListener('click', () => {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.classList.remove('hidden'); // Show loading overlay
+        
+        // Use a timeout to allow the UI to update before the heavy export task starts
+        setTimeout(() => {
+            App.exportAllDraco({
+                onComplete: () => overlay.classList.add('hidden'),
+                onError: () => overlay.classList.add('hidden'),
+            });
+        }, 50);
+    });
 
     document.getElementById('export-glb-btn').addEventListener('click', ()=> {
       const modal = document.getElementById('export-modal');
@@ -54,7 +65,6 @@ export function mountDashboard(refreshOnly=false){
       modal.classList.remove('hidden');
     });
 
-    // --- MODIFIED CODE START ---
     document.getElementById('copy-data-btn').addEventListener('click', () => {
       const m = App.models[App.activeModelId];
       if (!m) return;
@@ -77,9 +87,7 @@ export function mountDashboard(refreshOnly=false){
       
       const dataString = JSON.stringify(data, null, 2);
 
-      // --- Robust Clipboard Logic ---
       if (navigator.clipboard && window.isSecureContext) {
-        // Modern async method (requires HTTPS or localhost)
         navigator.clipboard.writeText(dataString)
           .then(() => alert('✅ Transform data copied to clipboard!'))
           .catch(err => {
@@ -87,7 +95,6 @@ export function mountDashboard(refreshOnly=false){
             fallbackCopyTextToClipboard(dataString);
           });
       } else {
-        // Fallback for insecure contexts (like file://) or older browsers
         fallbackCopyTextToClipboard(dataString);
       }
     });
@@ -96,7 +103,6 @@ export function mountDashboard(refreshOnly=false){
       const textArea = document.createElement("textarea");
       textArea.value = text;
       
-      // Avoid scrolling to bottom
       textArea.style.top = "0";
       textArea.style.left = "0";
       textArea.style.position = "fixed";
@@ -122,8 +128,6 @@ export function mountDashboard(refreshOnly=false){
     
       document.body.removeChild(textArea);
     }
-    // --- MODIFIED CODE END ---
-
 
     document.getElementById('toggle-rig-btn').addEventListener('click', ()=>{
       const m = App.models[App.activeModelId]; if (m?.skeletonHelper){ m.skeletonHelper.visible = !m.skeletonHelper.visible; refresh(); }
