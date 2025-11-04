@@ -20,20 +20,32 @@ export function mountTextures(refreshOnly=false){
     }
 
     const activeObject = App.activeObject;
-    if (!activeObject || !activeObject.isMesh) {
-        container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select a mesh from the Meshes tab to edit textures.</div>';
-        // Clear outline pass if we deselect a mesh
+    // *** UPDATED: Only hide if no object is selected ***
+    if (!activeObject) {
+        container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select a mesh or model from the Meshes tab.</div>';
         if (App.outlinePass) App.outlinePass.selectedObjects = [];
         return;
     }
 
-    // *** NEW: The selected mesh is the active object ***
-    const mesh = activeObject;
+    // Determine target name and type
+    let targetName = '(Unnamed)';
+    let isMesh = activeObject.isMesh;
+    if (isMesh) {
+      targetName = activeObject.name || '(unnamed mesh)';
+    } else if (activeObject.isGroup) {
+      targetName = '(Whole Model)';
+    }
 
-    // Find current UV scale from the selected mesh's map, default to 1
+    // Find current UV scale from the selected object, default to 1
     let currentUVScale = 1.0;
-    if (mesh.material && mesh.material.map && mesh.material.map.repeat) {
-        currentUVScale = mesh.material.map.repeat.x;
+    if (isMesh && activeObject.material && activeObject.material.map && activeObject.material.map.repeat) {
+        currentUVScale = activeObject.material.map.repeat.x;
+    } else if (activeObject.isGroup) {
+        activeObject.traverse(o => {
+            if (o.isMesh && o.material && o.material.map && o.material.map.repeat) {
+                currentUVScale = o.material.map.repeat.x; // Grab first one found
+            }
+        });
     }
 
     // Slider template
@@ -48,7 +60,7 @@ export function mountTextures(refreshOnly=false){
       <div id="texture-map-controls-wrapper" style="padding-top: 12px;">
         <h3 class="panel-title">Texture Maps</h3>
         <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">
-          Editing textures for: <strong>${mesh.name || '(unnamed mesh)'}</strong>
+          Editing textures for: <strong>${targetName}</strong>
         </p>
         
         <div class="button-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -69,27 +81,36 @@ export function mountTextures(refreshOnly=false){
         </div>
       </div>
     `;
-
-    // *** REMOVED getSelectedMesh function ***
     
     container.querySelectorAll('.texture-load-btn').forEach(btn => {
       btn.addEventListener('click', e => {
-        const mesh = App.activeObject; // Get from global state
-        if (!mesh || !mesh.isMesh) return alert('Select a valid mesh first.');
-        App.ui.textureTarget = { mesh, type: e.target.dataset.map };
+        const object = App.activeObject; // Get from global state
+        if (!object) return alert('Select a valid object first.');
+        // *** UPDATED: Send 'object' (Mesh or Group) instead of 'mesh' ***
+        App.ui.textureTarget = { object: object, type: e.target.dataset.map };
         document.getElementById('texture-input').click();
       });
     });
 
-    // --- REMOVED Outline Selection logic (now in viewer.js) ---
-
-    // --- UV Slider Handler (unchanged logic, just uses App.activeObject) ---
+    // --- UV Slider Handler (Updated) ---
     const uvSliderRow = container.querySelector('.slider-row[data-id="uv-scale"]');
     if (uvSliderRow) {
         const rng = uvSliderRow.querySelector('.rng');
         const num = uvSliderRow.querySelector('.num');
         const decimals = parseInt(uvSliderRow.dataset.decimals);
         const mapTypes = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+
+        const applyUVScaleToMaterial = (mat, scale) => {
+            mapTypes.forEach(mapType => {
+                const tex = mat[mapType];
+                if (tex && tex.isTexture) {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.repeat.set(scale, scale);
+                    tex.needsUpdate = true;
+                }
+            });
+        };
 
         const syncAndApplyUV = (source) => {
             const scale = parseFloat(source.value);
@@ -101,18 +122,23 @@ export function mountTextures(refreshOnly=false){
                 rng.value = scale;
             }
 
-            const mesh = App.activeObject; // Get from global state
-            if (!mesh || !mesh.material) return;
+            const targetObject = App.activeObject; // Get from global state
+            if (!targetObject) return;
             
-            mapTypes.forEach(mapType => {
-                const tex = mesh.material[mapType];
-                if (tex && tex.isTexture) {
-                    tex.wrapS = THREE.RepeatWrapping;
-                    tex.wrapT = THREE.RepeatWrapping;
-                    tex.repeat.set(scale, scale);
-                    tex.needsUpdate = true;
-                }
-            });
+            if (targetObject.isMesh) {
+                // --- 1. Apply to a single mesh ---
+                const materials = Array.isArray(targetObject.material) ? targetObject.material : [targetObject.material];
+                materials.forEach(mat => applyUVScaleToMaterial(mat, scale));
+            
+            } else if (targetObject.isGroup) {
+                // --- 2. Apply to all meshes in group ---
+                targetObject.traverse(o => {
+                    if (o.isMesh) {
+                        const materials = Array.isArray(o.material) ? o.material : [o.material];
+                        materials.forEach(mat => applyUVScaleToMaterial(mat, scale));
+                    }
+                });
+            }
         };
         
         rng.addEventListener('input', () => syncAndApplyUV(rng));
