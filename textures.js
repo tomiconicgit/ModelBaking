@@ -21,6 +21,20 @@ export function mountTextures(refreshOnly=false){
     const meshes=[];
     m.gltf.scene.traverse(o=>{ if (o.isMesh) meshes.push(o); });
 
+    // Find current UV scale from the first mesh's map, default to 1
+    let currentUVScale = 1.0;
+    if (meshes.length && meshes[0].material && meshes[0].material.map) {
+        currentUVScale = meshes[0].material.map.repeat.x;
+    }
+
+    // Slider template (borrowed from transform.js)
+    const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
+      <div class="slider-row" data-id="${id}" data-step="${step}" data-decimals="${decimals}">
+        <label>${label}</label>
+        <input type="range" class="rng" value="${val}" min="${min}" max="${max}" step="${step / 10}">
+        <input type="number" class="num" value="${val.toFixed(decimals)}" step="${step}">
+      </div>`;
+
     container.innerHTML = `
       <div class="form-group">
         <label for="texture-mesh-select">Target Mesh</label>
@@ -42,6 +56,14 @@ export function mountTextures(refreshOnly=false){
             <button class="button ghost texture-load-btn" data-map="emissiveMap">Emissive</button>
         </div>
       </div>
+
+      <div id="texture-uv-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border); ${!meshes.length ? 'display:none' : ''}">
+        <h3 class="panel-title">UV Scaling</h3>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Adjust uniform texture tiling (repeat).</p>
+        <div class="transform-group">
+            ${sliderRow('uv-scale','S', currentUVScale, 0.1, 1.0, 0.01, 2)}
+        </div>
+      </div>
     `;
 
     const meshSel = document.getElementById('texture-mesh-select');
@@ -55,5 +77,63 @@ export function mountTextures(refreshOnly=false){
         document.getElementById('texture-input').click();
       });
     });
+
+    // --- NEW: Handle Outline Selection ---
+    function updateOutlineSelection() {
+        if (!App.outlinePass) return;
+        const mesh = getSelectedMesh();
+        App.outlinePass.selectedObjects = mesh ? [mesh] : [];
+        
+        // Also update the UV slider to reflect the new selection's value
+        let scale = 1.0;
+        if (mesh && mesh.material && mesh.material.map && mesh.material.map.repeat) {
+            scale = mesh.material.map.repeat.x;
+        }
+        const uvRow = document.querySelector('.slider-row[data-id="uv-scale"]');
+        if (uvRow) {
+            uvRow.querySelector('.rng').value = scale;
+            uvRow.querySelector('.num').value = scale.toFixed(2);
+        }
+    }
+    meshSel.addEventListener('change', updateOutlineSelection);
+    updateOutlineSelection(); // Run on init
+
+    // --- NEW: Handle UV Slider ---
+    const uvSliderRow = container.querySelector('.slider-row[data-id="uv-scale"]');
+    if (uvSliderRow) {
+        const rng = uvSliderRow.querySelector('.rng');
+        const num = uvSliderRow.querySelector('.num');
+        const decimals = parseInt(uvSliderRow.dataset.decimals);
+        const mapTypes = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+
+        const syncAndApplyUV = (source) => {
+            const scale = parseFloat(source.value);
+            if (isNaN(scale)) return;
+
+            // Sync inputs
+            if (source.type === 'range') {
+                num.value = scale.toFixed(decimals);
+            } else {
+                rng.value = scale;
+            }
+
+            // Apply to mesh
+            const mesh = getSelectedMesh();
+            if (!mesh || !mesh.material) return;
+            
+            mapTypes.forEach(mapType => {
+                const tex = mesh.material[mapType];
+                if (tex && tex.isTexture) {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.repeat.set(scale, scale);
+                    tex.needsUpdate = true;
+                }
+            });
+        };
+        
+        rng.addEventListener('input', () => syncAndApplyUV(rng));
+        num.addEventListener('input', () => syncAndApplyUV(num));
+    }
   }
 }
