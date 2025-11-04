@@ -100,6 +100,12 @@ function handleTextureLoad(e) {
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = false;
+      // *** ADDED for UV Scaling ***
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.needsUpdate = true;
+      // ***************************
+
       if (!tgt.mesh.material || !tgt.mesh.material.isMeshStandardMaterial) {
         alert('Target mesh does not use a standard material.');
         URL.revokeObjectURL(url);
