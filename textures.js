@@ -13,21 +13,30 @@ export function mountTextures(refreshOnly=false){
   function render(){
     const container = document.getElementById('texture-panel-content');
     const m = App.models[App.activeModelId];
+    
     if (!m){
         container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model from Tabs.</div>';
         return;
     }
 
-    const meshes=[];
-    m.gltf.scene.traverse(o=>{ if (o.isMesh) meshes.push(o); });
-
-    // Find current UV scale from the first mesh's map, default to 1
-    let currentUVScale = 1.0;
-    if (meshes.length && meshes[0].material && meshes[0].material.map) {
-        currentUVScale = meshes[0].material.map.repeat.x;
+    const activeObject = App.activeObject;
+    if (!activeObject || !activeObject.isMesh) {
+        container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select a mesh from the Meshes tab to edit textures.</div>';
+        // Clear outline pass if we deselect a mesh
+        if (App.outlinePass) App.outlinePass.selectedObjects = [];
+        return;
     }
 
-    // Slider template (borrowed from transform.js)
+    // *** NEW: The selected mesh is the active object ***
+    const mesh = activeObject;
+
+    // Find current UV scale from the selected mesh's map, default to 1
+    let currentUVScale = 1.0;
+    if (mesh.material && mesh.material.map && mesh.material.map.repeat) {
+        currentUVScale = mesh.material.map.repeat.x;
+    }
+
+    // Slider template
     const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
       <div class="slider-row" data-id="${id}" data-step="${step}" data-decimals="${decimals}">
         <label>${label}</label>
@@ -36,16 +45,11 @@ export function mountTextures(refreshOnly=false){
       </div>`;
 
     container.innerHTML = `
-      <div class="form-group">
-        <label for="texture-mesh-select">Target Mesh</label>
-        <select id="texture-mesh-select" ${!meshes.length ? 'disabled' : ''}>
-          ${meshes.length ? meshes.map(ms => `<option value="${ms.uuid}">${ms.name || '(unnamed mesh)'}</option>`).join('') : '<option>No meshes found</option>'}
-        </select>
-      </div>
-      
-      <div id="texture-map-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
+      <div id="texture-map-controls-wrapper" style="padding-top: 12px;">
         <h3 class="panel-title">Texture Maps</h3>
-        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Load PBR texture maps to control material properties.</p>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">
+          Editing textures for: <strong>${mesh.name || '(unnamed mesh)'}</strong>
+        </p>
         
         <div class="button-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
             <button class="button ghost texture-load-btn" data-map="map">Albedo</button>
@@ -57,7 +61,7 @@ export function mountTextures(refreshOnly=false){
         </div>
       </div>
 
-      <div id="texture-uv-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border); ${!meshes.length ? 'display:none' : ''}">
+      <div id="texture-uv-controls-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
         <h3 class="panel-title">UV Scaling</h3>
         <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Adjust uniform texture tiling (repeat).</p>
         <div class="transform-group">
@@ -66,39 +70,20 @@ export function mountTextures(refreshOnly=false){
       </div>
     `;
 
-    const meshSel = document.getElementById('texture-mesh-select');
-    const getSelectedMesh = () => m.gltf.scene.getObjectByProperty('uuid', meshSel.value);
+    // *** REMOVED getSelectedMesh function ***
     
     container.querySelectorAll('.texture-load-btn').forEach(btn => {
       btn.addEventListener('click', e => {
-        const mesh = getSelectedMesh();
-        if (!mesh) return alert('Select a valid mesh first.');
+        const mesh = App.activeObject; // Get from global state
+        if (!mesh || !mesh.isMesh) return alert('Select a valid mesh first.');
         App.ui.textureTarget = { mesh, type: e.target.dataset.map };
         document.getElementById('texture-input').click();
       });
     });
 
-    // --- NEW: Handle Outline Selection ---
-    function updateOutlineSelection() {
-        if (!App.outlinePass) return;
-        const mesh = getSelectedMesh();
-        App.outlinePass.selectedObjects = mesh ? [mesh] : [];
-        
-        // Also update the UV slider to reflect the new selection's value
-        let scale = 1.0;
-        if (mesh && mesh.material && mesh.material.map && mesh.material.map.repeat) {
-            scale = mesh.material.map.repeat.x;
-        }
-        const uvRow = document.querySelector('.slider-row[data-id="uv-scale"]');
-        if (uvRow) {
-            uvRow.querySelector('.rng').value = scale;
-            uvRow.querySelector('.num').value = scale.toFixed(2);
-        }
-    }
-    meshSel.addEventListener('change', updateOutlineSelection);
-    updateOutlineSelection(); // Run on init
+    // --- REMOVED Outline Selection logic (now in viewer.js) ---
 
-    // --- NEW: Handle UV Slider ---
+    // --- UV Slider Handler (unchanged logic, just uses App.activeObject) ---
     const uvSliderRow = container.querySelector('.slider-row[data-id="uv-scale"]');
     if (uvSliderRow) {
         const rng = uvSliderRow.querySelector('.rng');
@@ -110,15 +95,13 @@ export function mountTextures(refreshOnly=false){
             const scale = parseFloat(source.value);
             if (isNaN(scale)) return;
 
-            // Sync inputs
             if (source.type === 'range') {
                 num.value = scale.toFixed(decimals);
             } else {
                 rng.value = scale;
             }
 
-            // Apply to mesh
-            const mesh = getSelectedMesh();
+            const mesh = App.activeObject; // Get from global state
             if (!mesh || !mesh.material) return;
             
             mapTypes.forEach(mapType => {
