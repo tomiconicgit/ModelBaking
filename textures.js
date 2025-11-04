@@ -20,7 +20,6 @@ export function mountTextures(refreshOnly=false){
     }
 
     const activeObject = App.activeObject;
-    // *** UPDATED: Only hide if no object is selected ***
     if (!activeObject) {
         container.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select a mesh or model from the Meshes tab.</div>';
         if (App.outlinePass) App.outlinePass.selectedObjects = [];
@@ -36,16 +35,30 @@ export function mountTextures(refreshOnly=false){
       targetName = '(Whole Model)';
     }
 
-    // Find current UV scale from the selected object, default to 1
+    // --- NEW: Get current material properties ---
     let currentUVScale = 1.0;
-    if (isMesh && activeObject.material && activeObject.material.map && activeObject.material.map.repeat) {
-        currentUVScale = activeObject.material.map.repeat.x;
-    } else if (activeObject.isGroup) {
+    let currentRoughness = 0.5;
+    let currentMetalness = 0.5;
+    let currentEmissive = 0.0;
+
+    let firstMat = null;
+    if (isMesh) {
+        firstMat = Array.isArray(activeObject.material) ? activeObject.material[0] : activeObject.material;
+    } else {
         activeObject.traverse(o => {
-            if (o.isMesh && o.material && o.material.map && o.material.map.repeat) {
-                currentUVScale = o.material.map.repeat.x; // Grab first one found
+            if (!firstMat && o.isMesh) {
+                firstMat = Array.isArray(o.material) ? o.material[0] : o.material;
             }
         });
+    }
+
+    if (firstMat) {
+        if (firstMat.map && firstMat.map.repeat) {
+            currentUVScale = firstMat.map.repeat.x;
+        }
+        currentRoughness = firstMat.roughness;
+        currentMetalness = firstMat.metalness;
+        currentEmissive = firstMat.emissiveIntensity;
     }
 
     // Slider template
@@ -80,69 +93,97 @@ export function mountTextures(refreshOnly=false){
             ${sliderRow('uv-scale','S', currentUVScale, 0.1, 1.0, 0.01, 2)}
         </div>
       </div>
+
+      <div id="material-props-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
+        <h3 class="panel-title">Material Properties</h3>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Adjust PBR material values.</p>
+        <div class="transform-group">
+            ${sliderRow('mat-roughness','Roughness', currentRoughness, 0.0, 1.0, 0.01, 2)}
+            ${sliderRow('mat-metalness','Metalness', currentMetalness, 0.0, 1.0, 0.01, 2)}
+            ${sliderRow('mat-emissive','Emissive', currentEmissive, 0.0, 2.0, 0.01, 2)}
+        </div>
+      </div>
     `;
     
     container.querySelectorAll('.texture-load-btn').forEach(btn => {
       btn.addEventListener('click', e => {
-        const object = App.activeObject; // Get from global state
+        const object = App.activeObject;
         if (!object) return alert('Select a valid object first.');
-        // *** UPDATED: Send 'object' (Mesh or Group) instead of 'mesh' ***
         App.ui.textureTarget = { object: object, type: e.target.dataset.map };
         document.getElementById('texture-input').click();
       });
     });
 
-    // --- UV Slider Handler (Updated) ---
-    const uvSliderRow = container.querySelector('.slider-row[data-id="uv-scale"]');
-    if (uvSliderRow) {
-        const rng = uvSliderRow.querySelector('.rng');
-        const num = uvSliderRow.querySelector('.num');
-        const decimals = parseInt(uvSliderRow.dataset.decimals);
-        const mapTypes = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
-
-        const applyUVScaleToMaterial = (mat, scale) => {
+    // --- Helper function for applying material properties ---
+    const applyToMaterial = (mat, prop, value) => {
+        if (!mat) return;
+        
+        if (prop === 'uv-scale') {
+            const mapTypes = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
             mapTypes.forEach(mapType => {
                 const tex = mat[mapType];
                 if (tex && tex.isTexture) {
                     tex.wrapS = THREE.RepeatWrapping;
                     tex.wrapT = THREE.RepeatWrapping;
-                    tex.repeat.set(scale, scale);
+                    tex.repeat.set(value, value);
                     tex.needsUpdate = true;
                 }
             });
-        };
+        }
+        else if (prop === 'mat-roughness') {
+            mat.roughness = value;
+        }
+        else if (prop === 'mat-metalness') {
+            mat.metalness = value;
+        }
+        else if (prop === 'mat-emissive') {
+            mat.emissiveIntensity = value;
+            // If intensity is > 0 and color is black, set color to white
+            if (value > 0 && mat.emissive.getHexString() === '000000') {
+                mat.emissive.set(0xffffff);
+            }
+        }
+        mat.needsUpdate = true;
+    };
 
-        const syncAndApplyUV = (source) => {
-            const scale = parseFloat(source.value);
-            if (isNaN(scale)) return;
+    // --- Combined Slider Handler ---
+    container.querySelectorAll('.slider-row').forEach(row => {
+        const rng = row.querySelector('.rng');
+        const num = row.querySelector('.num');
+        const id = row.dataset.id;
+        const decimals = parseInt(row.dataset.decimals);
 
+        const syncAndApply = (source) => {
+            const value = parseFloat(source.value);
+            if (isNaN(value)) return;
+
+            // Sync inputs
             if (source.type === 'range') {
-                num.value = scale.toFixed(decimals);
+                num.value = value.toFixed(decimals);
             } else {
-                rng.value = scale;
+                rng.value = value;
             }
 
-            const targetObject = App.activeObject; // Get from global state
+            // Apply property
+            const targetObject = App.activeObject;
             if (!targetObject) return;
-            
+
             if (targetObject.isMesh) {
-                // --- 1. Apply to a single mesh ---
                 const materials = Array.isArray(targetObject.material) ? targetObject.material : [targetObject.material];
-                materials.forEach(mat => applyUVScaleToMaterial(mat, scale));
+                materials.forEach(mat => applyToMaterial(mat, id, value));
             
             } else if (targetObject.isGroup) {
-                // --- 2. Apply to all meshes in group ---
                 targetObject.traverse(o => {
                     if (o.isMesh) {
                         const materials = Array.isArray(o.material) ? o.material : [o.material];
-                        materials.forEach(mat => applyUVScaleToMaterial(mat, scale));
+                        materials.forEach(mat => applyToMaterial(mat, id, value));
                     }
                 });
             }
         };
-        
-        rng.addEventListener('input', () => syncAndApplyUV(rng));
-        num.addEventListener('input', () => syncAndApplyUV(num));
-    }
+
+        rng.addEventListener('input', () => syncAndApply(rng));
+        num.addEventListener('input', () => syncAndApply(num));
+    });
   }
 }
