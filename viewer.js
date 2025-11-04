@@ -3,6 +3,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+// Added imports for outlining
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 export const App = {
   scene: null,
@@ -17,6 +23,9 @@ export const App = {
   modelIdCounter: 0,
   events: new EventTarget(),
   ui: { textureTarget: { mesh:null, type:null } },
+  // Added for post-processing
+  composer: null,
+  outlinePass: null,
 };
 
 let __initialized = false;
@@ -65,7 +74,26 @@ export async function initViewer() {
   dir.position.set(-6, 10, 6);
   scene.add(dir);
   
-  Object.assign(App, { scene, camera, renderer, controls, envTex });
+  // --- Setup Effect Composer for Outlines ---
+  const composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+
+  const outlinePass = new OutlinePass(new THREE.Vector2(viewerEl.clientWidth, viewerEl.clientHeight), scene, camera);
+  outlinePass.edgeStrength = 4.0;
+  outlinePass.edgeGlow = 0.2;
+  outlinePass.edgeThickness = 1.0;
+  outlinePass.visibleEdgeColor.set('#007aff'); // Use primary blue color
+  outlinePass.hiddenEdgeColor.set('#007aff');
+  composer.addPass(outlinePass);
+  
+  const fxaaPass = new ShaderPass(FXAAShader);
+  fxaaPass.material.uniforms['resolution'].value.x = 1 / (viewerEl.clientWidth * renderer.getPixelRatio());
+  fxaaPass.material.uniforms['resolution'].value.y = 1 / (viewerEl.clientHeight * renderer.getPixelRatio());
+  composer.addPass(fxaaPass);
+
+  Object.assign(App, { scene, camera, renderer, controls, envTex, composer, outlinePass });
+  // ------------------------------------------
 
   buildFloor();
 
@@ -75,6 +103,12 @@ export async function initViewer() {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    
+    // Update composer and passes on resize
+    composer.setSize(w, h);
+    fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * renderer.getPixelRatio());
+    fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * renderer.getPixelRatio());
+    outlinePass.resolution.set(w, h);
   }).observe(viewerEl);
 
   const clock = new THREE.Clock();
@@ -83,7 +117,8 @@ export async function initViewer() {
     const dt = clock.getDelta();
     Object.values(App.models).forEach(m => m.mixer && m.mixer.update(dt));
     controls.update();
-    renderer.render(scene, camera);
+    // Use composer to render
+    composer.render(dt);
   })();
 
   __initialized = true;
@@ -154,6 +189,10 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
 
 App.setActiveModel = function(id){
   App.activeModelId = id;
+  // Clear outline selection when switching models
+  if (App.outlinePass) {
+    App.outlinePass.selectedObjects = [];
+  }
   App.events.dispatchEvent(new CustomEvent('panels:refresh-all'));
 };
 
