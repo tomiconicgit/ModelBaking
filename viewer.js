@@ -3,12 +3,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
-// Added imports for outlining
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+// *** NEW IMPORT ***
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 export const App = {
   scene: null,
@@ -23,9 +24,11 @@ export const App = {
   modelIdCounter: 0,
   events: new EventTarget(),
   ui: { textureTarget: { mesh:null, type:null } },
-  // Added for post-processing
   composer: null,
   outlinePass: null,
+  // *** NEW PROPERTIES ***
+  transformGizmo: null, // The gizmo object
+  activeObject: null,   // The currently selected object (Mesh or Group)
 };
 
 let __initialized = false;
@@ -65,8 +68,6 @@ export async function initViewer() {
   controls.target.set(0, 1, 0);
   controls.enableDamping = true;
   controls.minDistance = 0.1;
-  // --- FIX: Removed the maximum distance limit ---
-  // controls.maxDistance = 1000; 
   controls.maxPolarAngle = Math.PI * 0.9;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.1));
@@ -83,7 +84,7 @@ export async function initViewer() {
   outlinePass.edgeStrength = 4.0;
   outlinePass.edgeGlow = 0.2;
   outlinePass.edgeThickness = 1.0;
-  outlinePass.visibleEdgeColor.set('#007aff'); // Use primary blue color
+  outlinePass.visibleEdgeColor.set('#007aff');
   outlinePass.hiddenEdgeColor.set('#007aff');
   composer.addPass(outlinePass);
   
@@ -92,7 +93,26 @@ export async function initViewer() {
   fxaaPass.material.uniforms['resolution'].value.y = 1 / (viewerEl.clientHeight * renderer.getPixelRatio());
   composer.addPass(fxaaPass);
 
-  Object.assign(App, { scene, camera, renderer, controls, envTex, composer, outlinePass });
+  // --- *** NEW: Setup Transform Gizmo *** ---
+  const gizmo = new TransformControls(camera, renderer.domElement);
+  gizmo.setMode('translate'); // 'translate', 'rotate', 'scale'
+  gizmo.enabled = false;
+  gizmo.setTranslationSnap(0.1);
+  gizmo.setRotationSnap(THREE.MathUtils.degToRad(15));
+  gizmo.setScaleSnap(0.1);
+  scene.add(gizmo);
+
+  // Disable orbit controls while dragging gizmo
+  gizmo.addEventListener('dragging-changed', (event) => {
+    controls.enabled = !event.value;
+  });
+
+  // Update Transform panel when gizmo move is finished
+  gizmo.addEventListener('objectChange', () => {
+    App.events.dispatchEvent(new Event('transform:refresh'));
+  });
+
+  Object.assign(App, { scene, camera, renderer, controls, envTex, composer, outlinePass, transformGizmo: gizmo });
   // ------------------------------------------
 
   buildFloor();
@@ -103,8 +123,6 @@ export async function initViewer() {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
-    
-    // Update composer and passes on resize
     composer.setSize(w, h);
     fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * renderer.getPixelRatio());
     fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * renderer.getPixelRatio());
@@ -117,7 +135,6 @@ export async function initViewer() {
     const dt = clock.getDelta();
     Object.values(App.models).forEach(m => m.mixer && m.mixer.update(dt));
     controls.update();
-    // Use composer to render
     composer.render(dt);
   })();
 
@@ -181,19 +198,46 @@ App.addModel = function(gltf, fileInfo = { name:'model.glb', size:0 }) {
     fileInfo: { ...fileInfo, ...stats }
   };
   
-  App.setActiveModel(id);
+  App.setActiveModel(id); // This will now also set the active object
   App.frameObject(anchor);
+  // panels:refresh-all is called by setActiveModel
+};
 
-  App.events.dispatchEvent(new CustomEvent('panels:refresh-all'));
+// *** NEW: Central function to set the active object ***
+App.setActiveObject = function(object) {
+  App.activeObject = object;
+
+  // 1. Update Gizmo
+  if (App.transformGizmo) {
+    if (object) {
+      App.transformGizmo.attach(object);
+      App.transformGizmo.enabled = true;
+    } else {
+      App.transformGizmo.detach();
+      App.transformGizmo.enabled = false;
+    }
+  }
+
+  // 2. Update Outline
+  if (App.outlinePass) {
+    // Only outline meshes, not the main anchor/group
+    if (object && object.isMesh) {
+      App.outlinePass.selectedObjects = [object];
+    } else {
+      App.outlinePass.selectedObjects = [];
+    }
+  }
+
+  // 3. Refresh all panels to reflect the change
+  App.events.dispatchEvent(new Event('panels:refresh-all'));
 };
 
 App.setActiveModel = function(id){
   App.activeModelId = id;
-  // Clear outline selection when switching models
-  if (App.outlinePass) {
-    App.outlinePass.selectedObjects = [];
-  }
-  App.events.dispatchEvent(new CustomEvent('panels:refresh-all'));
+  const m = App.getActive();
+  // When a model is activated, set its main anchor as the active object
+  App.setActiveObject(m ? m.anchor : null);
+  // Note: setActiveObject already fires 'panels:refresh-all'
 };
 
 App.getActive = () => App.models[App.activeModelId] || null;
@@ -212,7 +256,6 @@ App.frameObject = function(object){
 
   const newCamPos = new THREE.Vector3(center.x, center.y, center.z + cameraDist);
   
-  // --- FIX: Dynamically update camera clipping planes ---
   App.camera.near = cameraDist / 100;
   App.camera.far = cameraDist * 2;
   App.camera.updateProjectionMatrix();
@@ -225,9 +268,10 @@ App.frameObject = function(object){
 };
 
 App.centerCamera = function() {
-    const activeModel = App.getActive();
-    if (activeModel) {
-        App.frameObject(activeModel.anchor);
+    // Center on the active *object* if one is selected, otherwise the model
+    const target = App.activeObject || App.getActive()?.anchor;
+    if (target) {
+        App.frameObject(target);
     } else {
         App.controls.target.set(0, 1, 0);
         App.camera.position.set(0, 5, 10);
@@ -236,9 +280,10 @@ App.centerCamera = function() {
 };
 
 App.zeroActiveModelPosition = function() {
-  const model = App.getActive();
-  if (!model) return;
-  model.anchor.position.set(0, 0, 0);
+  // Renamed to 'zeroActiveObject' for clarity
+  const object = App.activeObject;
+  if (!object) return;
+  object.position.set(0, 0, 0);
   App.events.dispatchEvent(new Event('transform:refresh'));
 };
 
