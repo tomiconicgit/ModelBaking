@@ -35,11 +35,13 @@ export function mountTextures(refreshOnly=false){
       targetName = '(Whole Model)';
     }
 
-    // --- NEW: Get current material properties ---
+    // --- Get current material properties ---
     let currentUVScale = 1.0;
     let currentRoughness = 0.5;
     let currentMetalness = 0.5;
     let currentEmissive = 0.0;
+    let currentColor = '#ffffff';
+    let currentEmissiveColor = '#000000';
 
     let firstMat = null;
     if (isMesh) {
@@ -52,13 +54,15 @@ export function mountTextures(refreshOnly=false){
         });
     }
 
-    if (firstMat) {
+    if (firstMat && firstMat.isMeshStandardMaterial) {
         if (firstMat.map && firstMat.map.repeat) {
             currentUVScale = firstMat.map.repeat.x;
         }
         currentRoughness = firstMat.roughness;
         currentMetalness = firstMat.metalness;
         currentEmissive = firstMat.emissiveIntensity;
+        currentColor = '#' + firstMat.color.getHexString();
+        currentEmissiveColor = '#' + firstMat.emissive.getHexString();
     }
 
     // Slider template
@@ -96,11 +100,23 @@ export function mountTextures(refreshOnly=false){
 
       <div id="material-props-wrapper" style="margin-top:24px; padding-top: 24px; border-top:1px solid var(--border);">
         <h3 class="panel-title">Material Properties</h3>
-        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Adjust PBR material values.</p>
+        <p style="color:var(--fg-light); margin:-12px 0 16px; font-size:0.9rem;">Adjust PBR material values and colors.</p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+          <div class="form-group" style="margin:0;">
+            <label for="mat-color-picker" style="margin-bottom: 8px;">Base Color</label>
+            <input type="color" id="mat-color-picker" class="mat-prop-input" data-id="mat-color" value="${currentColor}" style="width:100%; height:44px; padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-bg); cursor: pointer;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label for="mat-emissive-picker" style="margin-bottom: 8px;">Glow Color</label>
+            <input type="color" id="mat-emissive-picker" class="mat-prop-input" data-id="mat-emissive-color" value="${currentEmissiveColor}" style="width:100%; height:44px; padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-bg); cursor: pointer;">
+          </div>
+        </div>
+        
         <div class="transform-group">
             ${sliderRow('mat-roughness','Roughness', currentRoughness, 0.0, 1.0, 0.01, 2)}
             ${sliderRow('mat-metalness','Metalness', currentMetalness, 0.0, 1.0, 0.01, 2)}
-            ${sliderRow('mat-emissive','Emissive', currentEmissive, 0.0, 2.0, 0.01, 2)}
+            ${sliderRow('mat-emissive','Glow Intensity', currentEmissive, 0.0, 5.0, 0.01, 2)}
         </div>
       </div>
     `;
@@ -116,7 +132,7 @@ export function mountTextures(refreshOnly=false){
 
     // --- Helper function for applying material properties ---
     const applyToMaterial = (mat, prop, value) => {
-        if (!mat) return;
+        if (!mat || !mat.isMeshStandardMaterial) return;
         
         if (prop === 'uv-scale') {
             const mapTypes = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
@@ -136,12 +152,14 @@ export function mountTextures(refreshOnly=false){
         else if (prop === 'mat-metalness') {
             mat.metalness = value;
         }
-        else if (prop === 'mat-emissive') {
+        else if (prop === 'mat-emissive') { // This is Glow Intensity
             mat.emissiveIntensity = value;
-            // If intensity is > 0 and color is black, set color to white
-            if (value > 0 && mat.emissive.getHexString() === '000000') {
-                mat.emissive.set(0xffffff);
-            }
+        }
+        else if (prop === 'mat-color') {
+            mat.color.set(value); // 'value' will be a hex string, e.g., #ff0000
+        }
+        else if (prop === 'mat-emissive-color') {
+            mat.emissive.set(value); // 'value' will be a hex string
         }
         mat.needsUpdate = true;
     };
@@ -157,14 +175,12 @@ export function mountTextures(refreshOnly=false){
             const value = parseFloat(source.value);
             if (isNaN(value)) return;
 
-            // Sync inputs
             if (source.type === 'range') {
                 num.value = value.toFixed(decimals);
             } else {
                 rng.value = value;
             }
 
-            // Apply property
             const targetObject = App.activeObject;
             if (!targetObject) return;
 
@@ -184,6 +200,31 @@ export function mountTextures(refreshOnly=false){
 
         rng.addEventListener('input', () => syncAndApply(rng));
         num.addEventListener('input', () => syncAndApply(num));
+    });
+
+    // --- NEW: Color Picker Handler ---
+    container.querySelectorAll('.mat-prop-input').forEach(picker => {
+        const id = picker.dataset.id;
+        
+        picker.addEventListener('input', () => {
+            const value = picker.value; // This will be a hex string, e.g. #ff0000
+            const targetObject = App.activeObject;
+            if (!targetObject) return;
+
+            const applyFunc = (mat) => applyToMaterial(mat, id, value);
+
+            if (targetObject.isMesh) {
+                const materials = Array.isArray(targetObject.material) ? targetObject.material : [targetObject.material];
+                materials.forEach(applyFunc);
+            } else if (targetObject.isGroup) {
+                targetObject.traverse(o => {
+                    if (o.isMesh) {
+                        const materials = Array.isArray(o.material) ? o.material : [o.material];
+                        materials.forEach(applyFunc);
+                    }
+                });
+            }
+        });
     });
   }
 }
