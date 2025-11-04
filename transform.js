@@ -12,23 +12,33 @@ export function mountTransform(refreshOnly=false){
   build();
 
   function build(){
-    const m = App.models[App.activeModelId];
+    const target = App.activeObject; // *** NEW: Get the active object ***
     const wrap = document.getElementById('transform-controls-wrapper');
-    if (!m){ wrap.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an active model to see transform controls.</div>'; return; }
+    
+    if (!target){ 
+      wrap.innerHTML = '<div style="color:var(--fg-light); text-align:center; padding: 20px 0;">Select an object from the Meshes tab to transform.</div>'; 
+      return; 
+    }
 
-    const s = m.anchor;
+    const s = target; // Use target 's' for sliders
     const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
-    // Get current opacity from first mesh found
+    // Get current opacity
     let currentOpacity = 1.0;
-    m.anchor.traverse(o => {
-        if (o.isMesh && o.material) {
-            const mat = Array.isArray(o.material) ? o.material[0] : o.material;
-            if (mat && mat.opacity !== undefined) {
-                currentOpacity = mat.opacity;
+    if (target.isMesh) {
+        const mat = Array.isArray(target.material) ? target.material[0] : target.material;
+        if (mat) currentOpacity = mat.opacity;
+    } else if (target.isGroup) {
+        target.traverse(o => {
+            if (o.isMesh && o.material) {
+                const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+                if (mat && mat.opacity !== undefined) {
+                    currentOpacity = mat.opacity;
+                }
             }
-        }
-    });
+        });
+    }
+
 
     const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
       <div class="slider-row" data-id="${id}" data-step="${step}" data-decimals="${decimals}">
@@ -60,7 +70,7 @@ export function mountTransform(refreshOnly=false){
         ${sliderRow('scl-y','Y', s.scale.y, 0.01, 10, 0.01, 3)}
         ${sliderRow('scl-z','Z', s.scale.z, 0.01, 10, 0.01, 3)}
       </div>
-
+      
       <div class="transform-group" style="border-top: 1px solid var(--border); padding-top: 20px;">
         <h4>Appearance</h4>
         ${sliderRow('mat-opacity','Opacity', currentOpacity, 0.0, 1.0, 0.01, 2)}
@@ -68,7 +78,7 @@ export function mountTransform(refreshOnly=false){
     `;
 
     document.getElementById('zero-position-btn').addEventListener('click', () => {
-        App.zeroActiveModelPosition();
+        App.zeroActiveModelPosition(); // This is now aliased to zero the active object
     });
 
     wrap.querySelectorAll('.slider-row').forEach(row => {
@@ -89,9 +99,8 @@ export function mountTransform(refreshOnly=false){
       };
 
       const applyTransform = (val) => {
-          const model = App.getActive();
-          if (!model) return;
-          const target = model.anchor;
+          const target = App.activeObject; // *** NEW: Get active object ***
+          if (!target) return;
 
           if (id.startsWith('pos-')) {
               target.position[id.slice(-1)] = val;
@@ -102,21 +111,29 @@ export function mountTransform(refreshOnly=false){
               euler[id.slice(-1)] = THREE.MathUtils.degToRad(val);
               target.quaternion.setFromEuler(euler);
           } 
-          // *** NEW: Handle Opacity ***
           else if (id === 'mat-opacity') {
-            target.traverse(o => {
-                if (o.isMesh) {
-                    const materials = Array.isArray(o.material) ? o.material : [o.material];
-                    materials.forEach(mat => {
-                        if (mat) {
-                            mat.transparent = val < 1.0;
-                            mat.opacity = val;
-                            mat.needsUpdate = true;
-                        }
-                    });
+            const applyToMaterial = (mat) => {
+                if (mat) {
+                    mat.transparent = val < 1.0;
+                    mat.opacity = val;
+                    mat.needsUpdate = true;
                 }
-            });
+            };
+            
+            if (target.isMesh) { // Target is a single mesh
+                const materials = Array.isArray(target.material) ? target.material : [target.material];
+                materials.forEach(applyToMaterial);
+            } else if (target.isGroup) { // Target is the whole model
+                target.traverse(o => {
+                    if (o.isMesh) {
+                        const materials = Array.isArray(o.material) ? o.material : [o.material];
+                        materials.forEach(applyToMaterial);
+                    }
+                });
+            }
           }
+          // Notify gizmo of external change
+          if (App.transformGizmo) App.transformGizmo.update();
       };
 
       rng.addEventListener('input', () => syncInputs(rng));
