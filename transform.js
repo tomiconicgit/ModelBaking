@@ -19,6 +19,17 @@ export function mountTransform(refreshOnly=false){
     const s = m.anchor;
     const euler = new THREE.Euler().setFromQuaternion(s.quaternion, 'YXZ');
 
+    // Get current opacity from first mesh found
+    let currentOpacity = 1.0;
+    m.anchor.traverse(o => {
+        if (o.isMesh && o.material) {
+            const mat = Array.isArray(o.material) ? o.material[0] : o.material;
+            if (mat && mat.opacity !== undefined) {
+                currentOpacity = mat.opacity;
+            }
+        }
+    });
+
     const sliderRow = (id, label, val, min, max, step, decimals=2)=>`
       <div class="slider-row" data-id="${id}" data-step="${step}" data-decimals="${decimals}">
         <label>${label}</label>
@@ -48,6 +59,11 @@ export function mountTransform(refreshOnly=false){
         ${sliderRow('scl-x','X', s.scale.x, 0.01, 10, 0.01, 3)}
         ${sliderRow('scl-y','Y', s.scale.y, 0.01, 10, 0.01, 3)}
         ${sliderRow('scl-z','Z', s.scale.z, 0.01, 10, 0.01, 3)}
+      </div>
+
+      <div class="transform-group" style="border-top: 1px solid var(--border); padding-top: 20px;">
+        <h4>Appearance</h4>
+        ${sliderRow('mat-opacity','Opacity', currentOpacity, 0.0, 1.0, 0.01, 2)}
       </div>
     `;
 
@@ -85,6 +101,21 @@ export function mountTransform(refreshOnly=false){
               const euler = new THREE.Euler().setFromQuaternion(target.quaternion, 'YXZ');
               euler[id.slice(-1)] = THREE.MathUtils.degToRad(val);
               target.quaternion.setFromEuler(euler);
+          } 
+          // *** NEW: Handle Opacity ***
+          else if (id === 'mat-opacity') {
+            target.traverse(o => {
+                if (o.isMesh) {
+                    const materials = Array.isArray(o.material) ? o.material : [o.material];
+                    materials.forEach(mat => {
+                        if (mat) {
+                            mat.transparent = val < 1.0;
+                            mat.opacity = val;
+                            mat.needsUpdate = true;
+                        }
+                    });
+                }
+            });
           }
       };
 
