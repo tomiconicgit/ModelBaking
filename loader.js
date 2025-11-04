@@ -40,9 +40,7 @@ function handleModelLoad(e) {
         ev.target.result,
         '',
         (gltf) => {
-          // Use App.addModel so we get the anchor wrapper + stats + helpers
           App.addModel(gltf, { name: file.name, size: file.size });
-          // Panels refresh (tabs, dashboard, etc.)
           App.events.dispatchEvent(new Event('panels:refresh-all'));
         },
         (err) => alert('GLTF parse error: ' + (err?.message || err))
@@ -73,7 +71,6 @@ function handleAnimationLoad(e) {
           alert('No animations in this file.');
           return;
         }
-        // Replace existing animation if present
         if (m.animation) {
           m.mixer.stopAllAction();
           m.mixer.uncacheClip(m.animation.clip);
@@ -89,31 +86,57 @@ function handleAnimationLoad(e) {
   reader.readAsArrayBuffer(file);
 }
 
+// *** UPDATED: This function now handles both single meshes and groups ***
 function handleTextureLoad(e) {
   const file = e.target.files[0];
   const tgt = App.ui.textureTarget; // set by textures panel
-  if (!file || !tgt?.mesh) return;
+  
+  // Check for 'object' (which can be a Mesh or Group) instead of 'mesh'
+  if (!file || !tgt?.object) return;
 
   const url = URL.createObjectURL(file);
+  
+  // Helper function to apply texture to a material
+  const applyTextureToMaterial = (mat, tex, mapType) => {
+    if (mat && mat.isMeshStandardMaterial) {
+      mat[mapType] = tex;
+      mat.needsUpdate = true;
+    } else if (mat) {
+      // Handle non-standard or multi-materials if needed
+    }
+  };
+
   App.loaders.textureLoader.load(
     url,
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = false;
-      // *** ADDED for UV Scaling ***
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.RepeatWrapping;
       tex.needsUpdate = true;
-      // ***************************
+      
+      const targetObject = tgt.object;
+      const mapType = tgt.type;
+      let appliedCount = 0;
 
-      if (!tgt.mesh.material || !tgt.mesh.material.isMeshStandardMaterial) {
-        alert('Target mesh does not use a standard material.');
-        URL.revokeObjectURL(url);
-        return;
+      if (targetObject.isMesh) {
+        // --- 1. Apply to a single mesh ---
+        const materials = Array.isArray(targetObject.material) ? targetObject.material : [targetObject.material];
+        materials.forEach(mat => applyTextureToMaterial(mat, tex, mapType));
+        appliedCount = 1;
+
+      } else if (targetObject.isGroup) {
+        // --- 2. Apply to all meshes in a group ---
+        targetObject.traverse(o => {
+          if (o.isMesh) {
+            const materials = Array.isArray(o.material) ? o.material : [o.material];
+            materials.forEach(mat => applyTextureToMaterial(mat, tex, mapType));
+            appliedCount++;
+          }
+        });
       }
-      tgt.mesh.material[tgt.type] = tex;
-      tgt.mesh.material.needsUpdate = true;
-      alert(`Applied ${tgt.type}.`);
+
+      alert(`Applied ${mapType} to ${appliedCount} mesh(es).`);
       URL.revokeObjectURL(url);
     },
     undefined,
